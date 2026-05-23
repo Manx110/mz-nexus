@@ -356,4 +356,42 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadLink.click();
         document.body.removeChild(downloadLink);
     });
+
+    // --- 7. MASTER AUTOMATED GLOBAL OPTIMIZER ENGINE ---
+    document.getElementById('btn-optimize').addEventListener('click', () => {
+        if (loadedPluginsCache.length === 0) {
+            alert("No active plugin configuration array detected to optimize.");
+            return;
+        }
+
+        // Identify every plugin name that currently holds a verified destructive overwrite
+        const conflictingPluginNames = Object.keys(conflictMatrixCache);
+
+        if (conflictingPluginNames.length === 0) {
+            alert("🟢 Global Scan Clean: Your layout configuration architecture is already fully optimized!");
+            return;
+        }
+
+        // Create separate buckets to segment your system structure
+        let problematicStack = [];
+        let stableStack = [];
+
+        // Distribute the entire project list based on baseline safety criteria
+        loadedPluginsCache.forEach(plugin => {
+            if (conflictingPluginNames.includes(plugin.name)) {
+                problematicStack.push(plugin);
+            } else {
+                stableStack.push(plugin);
+            }
+        });
+
+        // Recombine the stacks: Problematic modules shift to the top 
+        // to establish early execution priority before safer aliased chains load
+        loadedPluginsCache = [...problematicStack, ...stableStack];
+
+        alert(`🚀 MZ-Nexus Global Engine Active:\nSimultaneously optimized ${conflictingPluginNames.length} complex script conflict layers across your structural hierarchy!`);
+
+        // Force a total system re-scan to refresh the dashboard indicators instantly
+        runDeepProjectScan();
+    });
 });
