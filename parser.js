@@ -1,4 +1,4 @@
-// MZ-Nexus: Advanced Production Core with Topological Dependency Graph Sorting & Patch Compiler
+// MZ-Nexus: Complete Advanced Core with Dual-Rule Topological Sorting & Patch Compiler
 
 document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('file-drop-target');
@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let loadedPluginsCache = [];
     let scriptFileStorage = {}; 
     let conflictMatrixCache = {};
-    let pluginDependenciesMap = {}; // Tracks internal @base author rules dynamically
+    let pluginDependenciesMap = {}; // Tracks internal rules dynamically
 
     // --- 1. TAB VIEWPORT MANAGER ---
     tabButtons.forEach(button => {
@@ -98,13 +98,31 @@ document.addEventListener('DOMContentLoaded', () => {
             if (plugin.status && scriptFileStorage[fileName]) {
                 const codeText = await scriptFileStorage[fileName].text();
                 
-                // RULE EXTRACTOR: Scan header comments for "@base PluginName" hard dependency tags
+                // --- SMART DUAL-RULE EXTRACTOR ---
+                // 1. Scan for the official engine @base tag
                 const baseTagRegex = /@base\s+([A-Za-z0-9_]+)/g;
                 let baseMatch;
                 while ((baseMatch = baseTagRegex.exec(codeText)) !== null) {
                     const dependencyName = baseMatch[1];
                     if (!pluginDependenciesMap[plugin.name].includes(dependencyName)) {
                         pluginDependenciesMap[plugin.name].push(dependencyName);
+                    }
+                }
+
+                // 2. Scan for custom community [Tier X] text labels in descriptions
+                if (plugin.description && plugin.description.includes('[Tier')) {
+                    const tierMatch = plugin.description.match(/\[Tier\s*(\d+)\]/);
+                    if (tierMatch) {
+                        const currentTierNum = parseInt(tierMatch[1]);
+                        
+                        // Look through the project to find the previous tier dependencies
+                        loadedPluginsCache.forEach(otherPlugin => {
+                            if (otherPlugin.description && otherPlugin.description.includes(`[Tier ${currentTierNum - 1}]`)) {
+                                if (!pluginDependenciesMap[plugin.name].includes(otherPlugin.name)) {
+                                    pluginDependenciesMap[plugin.name].push(otherPlugin.name);
+                                }
+                            }
+                        });
                     }
                 }
 
@@ -236,37 +254,36 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(downloadLink);
     }
 
-    // --- 7. ADVANCED TOPOLOGICAL SORTING OPTIMIZER ---
+    // --- 7. ADVANCED TOPOLOGICAL SORTING OPTIMIZER WITH TIER COMPLIANCE ---
     document.getElementById('btn-optimize').addEventListener('click', async () => {
         if (loadedPluginsCache.length === 0) {
             alert("No active configuration array found.");
             return;
         }
 
-        alert("⚙️ Running Topological Graph Analysis...\nEvaluating file structures alongside internal author dependency matrix rules...");
+        alert("⚙️ Running Topological Graph Analysis...\nEvaluating file structures alongside official @base requirements and community [Tier] matrix rules...");
 
-        // Build topological list tracks
         const visited = {};
         const tempMark = {};
         const sortedStack = [];
         const pluginMap = {};
 
-        // Index everything for instant retrieval mapping
+        // Index the collection
         loadedPluginsCache.forEach(p => { pluginMap[p.name] = p; });
 
         function visit(nodeName) {
-            if (!pluginMap[nodeName]) return; // Skip components not present in active configuration array
+            if (!pluginMap[nodeName]) return; 
             if (tempMark[nodeName]) {
-                console.warn(`Circular dependency rule warning intercepted on component: ${nodeName}`);
-                return; // Break recursive cycle loops if layout rules loop infinitely
+                console.warn(`Circular dependency loop warning intercepted on: ${nodeName}`);
+                return; 
             }
             if (!visited[nodeName]) {
                 tempMark[nodeName] = true;
                 
-                // Fetch the @base hard rules we mapped out inside runDeepProjectScan
+                // Fetch rule tracks mapped dynamically in deep scan loop
                 const dependencies = pluginDependenciesMap[nodeName] || [];
                 dependencies.forEach(dep => {
-                    visit(dep); // Guarantee dependencies are processed and pushed into order positions FIRST
+                    visit(dep); 
                 });
 
                 tempMark[nodeName] = false;
@@ -275,16 +292,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Run the graph evaluation across all project components
+        // Run graph sort loop
         loadedPluginsCache.forEach(p => {
             if (!visited[p.name]) visit(p.name);
         });
 
-        // The topological sort generates the dependency sequence order.
-        // We ensure code overwrite vulnerabilities bubble safely without shattering these base tracks.
         loadedPluginsCache = sortedStack;
 
-        alert(`🚀 Graph Sorting Engine Optimization Complete!\nRe-sequenced your hierarchy stack while perfectly maintaining internal @base dependency restrictions.`);
+        alert(`🚀 Graph Sorting Engine Optimization Complete!\nRe-sequenced your hierarchy stack while maintaining internal metadata restrictions and descriptions.`);
         await runDeepProjectScan();
     });
 
