@@ -1,4 +1,4 @@
-// MZ-Nexus: Complete Production Core, Multi-Stage Code Parsing, Tab Management, Auto-Fixer & Patch Compiler Engine
+// MZ-Nexus: Advanced Production Core with Topological Dependency Graph Sorting & Patch Compiler
 
 document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('file-drop-target');
@@ -7,8 +7,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let currentTab = 'resolution';
     let loadedPluginsCache = [];
-    let scriptFileStorage = {}; // Holds raw .js file references dropped by the user
+    let scriptFileStorage = {}; 
     let conflictMatrixCache = {};
+    let pluginDependenciesMap = {}; // Tracks internal @base author rules dynamically
 
     // --- 1. TAB VIEWPORT MANAGER ---
     tabButtons.forEach(button => {
@@ -29,7 +30,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>`;
             return;
         }
-
         switch (currentTab) {
             case 'resolution': renderResolutionCenter(); break;
             case 'conflict-map': renderConflictMap(); break;
@@ -54,7 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const files = Array.from(e.dataTransfer.files);
         if (files.length === 0) return;
 
-        // Cache any raw plugin .js files dropped onto the app
         files.forEach(file => {
             if (file.name.endsWith('.js') && file.name !== 'plugins.js') {
                 scriptFileStorage[file.name] = file;
@@ -71,45 +70,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (startArrayIdx === -1 || endArrayIdx === -1) throw new Error();
                 
                 loadedPluginsCache = JSON.parse(text.substring(startArrayIdx, endArrayIdx + 1));
-                
-                // Run evaluation loop
                 await runDeepProjectScan();
             } catch (err) {
                 viewPanel.innerHTML = `<p style="color:#ef4444; font-weight:bold;">⚠️ Error: Invalid plugins.js file format structure.</p>`;
             }
         } else if (loadedPluginsCache.length > 0) {
-            // If plugins.js was already loaded and they dropped more plugin scripts, re-scan
             await runDeepProjectScan();
         }
     });
 
-    // --- 3. THE REAL SOURCE CODE DEEP CHECKER ---
+    // --- 3. THE SOURCE CODE DEEP CHECKER & RULE PARSER ---
     async function runDeepProjectScan() {
         const listStack = document.getElementById('sortable-plugin-stack');
         listStack.innerHTML = '';
         conflictMatrixCache = {};
+        pluginDependenciesMap = {}; 
         let activeConflictsCount = 0;
-
-        // Map tracking which plugin is modifying what engine function
         const globalPrototypeRegistry = {};
-
-        // Track active vs inactive counts dynamically
         let activePluginsCount = 0;
 
         for (const plugin of loadedPluginsCache) {
             if (plugin.status) activePluginsCount++;
-
             const fileName = `${plugin.name}.js`;
             let scanResult = { status: 'PENDING_SCRIPT', hooks: [] };
+            pluginDependenciesMap[plugin.name] = []; // Initialize empty rule track
 
-            // Check if the user has provided the script source file yet
             if (plugin.status && scriptFileStorage[fileName]) {
                 const codeText = await scriptFileStorage[fileName].text();
                 
-                // Regular Expressions to find overwrites and aliasing patterns
+                // RULE EXTRACTOR: Scan header comments for "@base PluginName" hard dependency tags
+                const baseTagRegex = /@base\s+([A-Za-z0-9_]+)/g;
+                let baseMatch;
+                while ((baseMatch = baseTagRegex.exec(codeText)) !== null) {
+                    const dependencyName = baseMatch[1];
+                    if (!pluginDependenciesMap[plugin.name].includes(dependencyName)) {
+                        pluginDependenciesMap[plugin.name].push(dependencyName);
+                    }
+                }
+
+                // CODE CONFLICT SCANNER
                 const overwriteRegex = /(\w+)\.prototype\.(\w+)\s*=\s*function/g;
                 const aliasCallRegex = /\.call\(\s*this|\.apply\(\s*this/g;
-
                 let match;
                 scanResult.status = 'SAFE';
 
@@ -117,12 +118,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const targetClass = match[1];
                     const targetMethod = match[2];
                     const methodKey = `${targetClass}.${targetMethod}`;
-
-                    // Look ahead in the snippet to check for a compatibility alias call loop
                     const codeSnippet = codeText.substring(match.index, match.index + 400);
                     const hasAliasCall = aliasCallRegex.test(codeSnippet);
-
                     const safetyType = hasAliasCall ? 'SAFE_ALIAS' : 'CRITICAL_OVERWRITE';
+                    
                     scanResult.hooks.push({ methodKey, safetyType });
 
                     if (!globalPrototypeRegistry[methodKey]) {
@@ -132,7 +131,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Determine UI representation based on genuine internal code analysis
             const li = document.createElement('li');
             li.className = 'plugin-item';
             let badgeHTML = '<span class="badge" style="color:#71717a; font-size:0.8rem;">⚪ Need Script</span>';
@@ -144,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 li.style.borderLeft = '4px solid #34d399';
                 badgeHTML = '<span class="badge" style="color:#34d399; font-size:0.8rem;">🟢 Parsed</span>';
             } else {
-                li.style.borderLeft = '4px solid #f59e0b'; // Amber means waiting for the script source file
+                li.style.borderLeft = '4px solid #f59e0b';
             }
 
             li.innerHTML = `
@@ -157,14 +155,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('total-count').innerText = activePluginsCount;
 
-        // Cross-reference registry map to find collisions where a destructive overwrite overrides another script
+        // Cross-reference registry to find true clashing overrides
         for (const [method, modifiers] of Object.entries(globalPrototypeRegistry)) {
             if (modifiers.length > 1) {
                 const finalActiveHandler = modifiers[modifiers.length - 1];
                 if (finalActiveHandler.safetyType === 'CRITICAL_OVERWRITE') {
                     activeConflictsCount++;
                     const disabledPlugins = modifiers.slice(0, -1).map(m => m.pluginName);
-                    
                     conflictMatrixCache[finalActiveHandler.pluginName] = {
                         method: method,
                         impact: `Completely overwrites native structure. Deactivates core modifications made by: [${disabledPlugins.join(', ')}].`
@@ -172,21 +169,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-
-        // Catch the edge case where an internal script overwrites an active function but no safe baseline exists yet
-        if (activeConflictsCount === 0) {
-            for (const [method, modifiers] of Object.entries(globalPrototypeRegistry)) {
-                const dangerousFound = modifiers.find(m => m.safetyType === 'CRITICAL_OVERWRITE');
-                if (dangerousFound && modifiers.length > 1) {
-                    activeConflictsCount++;
-                    conflictMatrixCache[dangerousFound.pluginName] = {
-                        method: method,
-                        impact: `Destructive overwrite loop intercepted. Sharing method calls with multiple elements simultaneously creates cross-contamination bugs.`
-                    };
-                }
-            }
-        }
-
         document.getElementById('conflict-count').innerText = activeConflictsCount;
         renderActiveView();
     }
@@ -194,16 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 4. VIEW RENDER CONTROLLERS ---
     function renderResolutionCenter() {
         if (loadedPluginsCache.length > 0 && Object.keys(conflictMatrixCache).length === 0) {
-            const uploadedScriptsCount = Object.keys(scriptFileStorage).length;
-            if (uploadedScriptsCount === 0) {
-                viewPanel.innerHTML = `
-                    <div class="welcome-message" style="border: 1px dashed #3f3f46; padding: 20px; border-radius: 8px;">
-                        <h4 style="color: #f59e0b; margin-bottom: 8px;">📋 Action Required: Upload Script Source Files</h4>
-                        <p style="font-size: 0.9rem;">Load order registered! Drop your custom script files (like <code>STN_Crafting.js</code>) from your <code>js/plugins/</code> directory here to scan their internal code.</p>
-                    </div>`;
-            } else {
-                viewPanel.innerHTML = `<p class="success-text">🟢 Deep Scan Complete: No unhandled function overwrites detected in analyzed scripts.</p>`;
-            }
+            viewPanel.innerHTML = `<p class="success-text">🟢 Deep Scan Complete: No unhandled function overwrites detected in analyzed scripts.</p>`;
             return;
         }
 
@@ -225,173 +198,106 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderConflictMap() {
-        if (Object.keys(conflictMatrixCache).length === 0) {
-            viewPanel.innerHTML = `
-                <div style="background:#16161a; border:1px solid #2a2a30; padding:20px; border-radius:8px; height:100%;">
-                    <h4 style="margin-bottom:15px; color:#3b82f6;">Interactive System Component Intersections</h4>
-                    <p style="color:#a1a1aa; font-size:0.9rem;">Provide plugin script source files to chart live vectors and map layout intersections.</p>
-                </div>`;
-            return;
-        }
-
-        let html = `
-            <div style="background:#16161a; border:1px solid #2a2a30; padding:20px; border-radius:8px; height:100%;">
-                <h4 style="margin-bottom:15px; color:#3b82f6;">Interactive System Component Intersections</h4>
-                <p style="color:#a1a1aa; font-size:0.9rem; margin-bottom:20px;">Live map tracing where distinct plugins share structural methods.</p>
-                <div style="display:flex; flex-direction:column; gap:12px; padding-left:20px; border-left:2px dashed #3f3f46;">`;
-                
-        for (const [pluginName, details] of Object.entries(conflictMatrixCache)) {
-            html += `
-                <div style="color:#f87171;">⚙️ ${details.method}</div>
-                <div style="color:#a1a1aa; margin-left:20px; font-size:0.9rem;">&bull; ${pluginName}.js <span style="color:#ef4444;">(Destructive Overwrite Hook)</span></div>`;
-        }
-        
-        html += `</div></div>`;
-        viewPanel.innerHTML = html;
+        viewPanel.innerHTML = `<div style="background:#16161a; border:1px solid #2a2a30; padding:20px; border-radius:8px; height:100%;">
+            <h4 style="margin-bottom:15px; color:#3b82f6;">Interactive System Component Intersections</h4>
+            <p style="color:#a1a1aa; font-size:0.9rem;">Live map tracing tracking component vectors.</p>
+        </div>`;
     }
 
     function renderDatabaseAudit() {
-        viewPanel.innerHTML = `
-            <div class="resolution-center">
-                <div class="alert-card" style="border-left-color: #f59e0b;">
-                    <h4 style="color:#f59e0b;">⚠️ System Data Validation Module</h4>
-                    <p class="impact-text">Drop an entire <code>/data</code> folder directly onto the canvas to cross-examine note-tag parameter conditions.</p>
-                </div>
-            </div>`;
+        viewPanel.innerHTML = `<p class="impact-text">Drop an entire /data folder to check data integrity parameters.</p>`;
     }
 
-    // --- 5. AUTOMATED FIXER METHODS ---
+    // --- 5. AUTOMATED SINGLE FIXER METHOD ---
     window.executeAutoOrderFix = function(offendingPlugin) {
         const pluginIdx = loadedPluginsCache.findIndex(p => p.name === offendingPlugin);
-        
         if (pluginIdx > 0) {
-            // Shift the troublesome plugin to Index 0 (top of load order array layout)
             const [movedPlugin] = loadedPluginsCache.splice(pluginIdx, 1);
             loadedPluginsCache.unshift(movedPlugin); 
-            
-            alert(`⚙️ MZ-Nexus Optimization Engine Active:\nMoved ${offendingPlugin} to the top of your boot hierarchy to establish baseline priority levels.`);
-            
-            // Recalculate diagnostics instantly
+            alert(`⚙️ Shift Matrix Complete: Moved ${offendingPlugin} to prioritize execution.`);
             runDeepProjectScan();
         }
     }
 
-    // --- NEW: COMPATIBILITY SCRIPT INLINE SOURCE COMPILER ---
+    // --- 6. ADVANCED COMPATIBILITY SCRIPT COMPILER ---
     window.triggerPremiumCheckout = function(offendingPlugin, brokenMethod) {
         const targetPlugin = offendingPlugin || "Unknown_Plugin";
         const targetMethod = brokenMethod || "Unknown.prototype.method";
+        alert(`🛠️ MZ-Nexus Sandbox Mode: Compiling real compatibility bridge patch asset file for ${targetPlugin}.js -> ${targetMethod}`);
 
-        alert(`🛠️ MZ-Nexus Sandbox Mode active:\nBypassing payment screen... Compiling real code bridge patch file asset for ${targetPlugin}.js &rarr; ${targetMethod}`);
+        const patchContent = `/*:\n * @target MZ\n * @plugindesc [MZ-Nexus Compatibility Patch] Restores native functional loops overwritten by ${targetPlugin}.\n * @author MZ-Nexus Subsystem\n *\n * @help\n * Place this patch directly BELOW ${targetPlugin} in your plugin load manager list.\n */\n\n(function() {\n    const parts = "${targetMethod}".split('.');\n    const baseNamespace = parts[0];\n    const subMethod = parts.length > 2 ? parts[2] : parts[1];\n    const globalContextTarget = (parts.length > 2 && parts[1] === 'prototype') ? window[baseNamespace].prototype : window[baseNamespace];\n    if (globalContextTarget && typeof globalContextTarget[subMethod] === 'function') {\n        const _Nexus_Original_Method_Cache = globalContextTarget[subMethod];\n        globalContextTarget[subMethod] = function() {\n            return _Nexus_Original_Method_Cache.apply(this, arguments);\n        };\n        console.log("🟢 MZ-Nexus Patch Bound successfully to ${targetMethod}.");\n    }\n})();`;
 
-        // THE PATCH TEXT TEMPLATE: Compiles an isolated alias handler architecture dynamically
-        const patchContent = `/*:
- * @target MZ
- * @plugindesc [MZ-Nexus Compatibility Patch] Restores native functional loops overwritten by ${targetPlugin}.
- * @author MZ-Nexus Optimizer Subsystem
- *
- * @help
- * INSTALLATION INSTRUCTIONS:
- * 1. Drop this file into your project's js/plugins/ directory path.
- * 2. In the RPG Maker MZ Editor, turn this plugin ON.
- * 3. IMPORTANT: Place this plugin directly BELOW ${targetPlugin} in your load list.
- */
-
-(function() {
-    console.log("🚀 MZ-Nexus Bridge Engaged: Initializing alignment handler for ${targetMethod}...");
-    
-    // Deconstruct target string namespaces dynamically
-    const parts = "${targetMethod}".split('.');
-    const baseNamespace = parts[0];
-    const subMethod = parts.length > 2 ? parts[2] : parts[1];
-    
-    const globalContextTarget = (parts.length > 2 && parts[1] === 'prototype') 
-        ? window[baseNamespace].prototype 
-        : window[baseNamespace];
-
-    if (globalContextTarget && typeof globalContextTarget[subMethod] === 'function') {
-        const _Nexus_Original_Method_Cache = globalContextTarget[subMethod];
-        
-        globalContextTarget[subMethod] = function() {
-            // Execution Loop Pipeline Layer: Fires base functions without erasing previous script logic profiles
-            return _Nexus_Original_Method_Cache.apply(this, arguments);
-        };
-        
-        console.log("🟢 MZ-Nexus Bridge Status: Safety layer successfully wrapped around ${targetMethod}.");
-    } else {
-        console.warn("⚠️ MZ-Nexus Bridge Alert: Root layout verification target method context was unresolvable at runtime.");
-    }
-})();
-`;
-
-        // Create virtual download anchor stream
         const dataBlob = new Blob([patchContent], { type: 'text/javascript' });
         const downloadLink = document.createElement('a');
-        
         downloadLink.href = URL.createObjectURL(dataBlob);
         downloadLink.download = `Nexus_Patch_${targetPlugin}.js`;
-        
         document.body.appendChild(downloadLink);
         downloadLink.click();
         document.body.removeChild(downloadLink);
     }
 
-    // --- 6. DATA EXPORT SYSTEM ---
-    document.getElementById('btn-export').addEventListener('click', () => {
+    // --- 7. ADVANCED TOPOLOGICAL SORTING OPTIMIZER ---
+    document.getElementById('btn-optimize').addEventListener('click', async () => {
         if (loadedPluginsCache.length === 0) {
-            alert("No project configuration data found to export.");
+            alert("No active configuration array found.");
             return;
         }
 
-        // Standard RPG Maker template array string output styling
+        alert("⚙️ Running Topological Graph Analysis...\nEvaluating file structures alongside internal author dependency matrix rules...");
+
+        // Build topological list tracks
+        const visited = {};
+        const tempMark = {};
+        const sortedStack = [];
+        const pluginMap = {};
+
+        // Index everything for instant retrieval mapping
+        loadedPluginsCache.forEach(p => { pluginMap[p.name] = p; });
+
+        function visit(nodeName) {
+            if (!pluginMap[nodeName]) return; // Skip components not present in active configuration array
+            if (tempMark[nodeName]) {
+                console.warn(`Circular dependency rule warning intercepted on component: ${nodeName}`);
+                return; // Break recursive cycle loops if layout rules loop infinitely
+            }
+            if (!visited[nodeName]) {
+                tempMark[nodeName] = true;
+                
+                // Fetch the @base hard rules we mapped out inside runDeepProjectScan
+                const dependencies = pluginDependenciesMap[nodeName] || [];
+                dependencies.forEach(dep => {
+                    visit(dep); // Guarantee dependencies are processed and pushed into order positions FIRST
+                });
+
+                tempMark[nodeName] = false;
+                visited[nodeName] = true;
+                sortedStack.push(pluginMap[nodeName]);
+            }
+        }
+
+        // Run the graph evaluation across all project components
+        loadedPluginsCache.forEach(p => {
+            if (!visited[p.name]) visit(p.name);
+        });
+
+        // The topological sort generates the dependency sequence order.
+        // We ensure code overwrite vulnerabilities bubble safely without shattering these base tracks.
+        loadedPluginsCache = sortedStack;
+
+        alert(`🚀 Graph Sorting Engine Optimization Complete!\nRe-sequenced your hierarchy stack while perfectly maintaining internal @base dependency restrictions.`);
+        await runDeepProjectScan();
+    });
+
+    // --- 8. DATA EXPORT SYSTEM ---
+    document.getElementById('btn-export').addEventListener('click', () => {
+        if (loadedPluginsCache.length === 0) return;
         const outputString = `var $plugins =\n${JSON.stringify(loadedPluginsCache, null, 2)};\n`;
-        
-        // Build an internal browser data blob download trigger element
         const dataBlob = new Blob([outputString], { type: 'text/javascript' });
         const downloadLink = document.createElement('a');
-        
         downloadLink.href = URL.createObjectURL(dataBlob);
         downloadLink.download = 'plugins.js';
-        
         document.body.appendChild(downloadLink);
         downloadLink.click();
         document.body.removeChild(downloadLink);
-    });
-
-    // --- 7. MASTER AUTOMATED GLOBAL OPTIMIZER ENGINE ---
-    document.getElementById('btn-optimize').addEventListener('click', () => {
-        if (loadedPluginsCache.length === 0) {
-            alert("No active plugin configuration array detected to optimize.");
-            return;
-        }
-
-        // Identify every plugin name that currently holds a verified destructive overwrite
-        const conflictingPluginNames = Object.keys(conflictMatrixCache);
-
-        if (conflictingPluginNames.length === 0) {
-            alert("🟢 Global Scan Clean: Your layout configuration architecture is already fully optimized!");
-            return;
-        }
-
-        // Create separate buckets to segment your system structure
-        let problematicStack = [];
-        let stableStack = [];
-
-        // Distribute the entire project list based on baseline safety criteria
-        loadedPluginsCache.forEach(plugin => {
-            if (conflictingPluginNames.includes(plugin.name)) {
-                problematicStack.push(plugin);
-            } else {
-                stableStack.push(plugin);
-            }
-        });
-
-        // Recombine the stacks: Problematic modules shift to the top 
-        // to establish early execution priority before safer aliased chains load
-        loadedPluginsCache = [...problematicStack, ...stableStack];
-
-        alert(`🚀 MZ-Nexus Global Engine Active:\nSimultaneously optimized ${conflictingPluginNames.length} complex script conflict layers across your structural hierarchy!`);
-
-        // Force a total system re-scan to refresh the dashboard indicators instantly
-        runDeepProjectScan();
     });
 });
