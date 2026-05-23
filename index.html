@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MZ-Nexus // RPG Maker MZ Plugin Sandbox</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <header class="app-header">
+            <div class="brand">MZ-Nexus <span class="version">// Engine: RPG Maker MZ</span></div>
+            <div class="stats-bar">
+                <div class="stat-badge">Active Plugins: <span id="total-count">0</span></div>
+                <div class="stat-badge status-alert">Conflicts: <span id="conflict-count">0</span></div>
+            </div>
+        </header>
+
+        <main class="workspace">
+            
+            <aside class="sidebar">
+                <div class="drop-zone" id="file-drop-target">
+                    <p>Drag & Drop <code>js/plugins.js</code> and plugin files here</p>
+                </div>
+                
+                <h3 class="section-title">Active Load Order</h3>
+                <ul class="plugin-list" id="sortable-plugin-stack">
+                    <li class="plugin-item card-demo">
+                        <span class="drag-handle">☰</span>
+                        <span class="plugin-name">Sandbox Waiting for Upload...</span>
+                    </li>
+                </ul>
+            </aside>
+
+            <section class="main-stage">
+                <nav class="stage-tabs">
+                    <button class="tab-btn active" data-tab="resolution">Resolution Center</button>
+                    <button class="tab-btn" data-tab="conflict-map">Conflict Map</button>
+                    <button class="tab-btn" data-tab="database">Database Audit</button>
+                </nav>
+
+                <div class="canvas-viewport" id="active-view-panel">
+                    <div class="welcome-message">
+                        <h3>System Diagnostics Ready</h3>
+                        <p>Drop your project's <code>plugins.js</code> along with your custom <code>.js</code> plugin scripts into the drop zone to run an automated memory overwrite check.</p>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <footer class="app-footer">
+            <button class="btn btn-secondary" id="btn-optimize">Auto-Optimize Order</button>
+            <button class="btn btn-primary" id="btn-export">Export Updated plugins.js</button>
+        </footer>
+
+    </div>
+
+    <script src="parser.js"></script>
+</body>
+</html>

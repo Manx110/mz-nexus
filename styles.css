@@ -1,0 +1,288 @@
+/* Core Styling Matrix for MZ-Nexus - Scroll Layout Fixed */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body, html {
+    height: 100vh;
+    background-color: #121214;
+    color: #e4e4e7;
+    font-family: 'Consolas', 'JetBrains Mono', monospace;
+    overflow: hidden;
+}
+
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* Header Config */
+.app-header {
+    background-color: #1a1a1e;
+    padding: 15px 24px;
+    border-bottom: 1px solid #2a2a30;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 60px; /* Locked Header Height */
+}
+
+.brand {
+    font-size: 1.1rem;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+.version {
+    color: #71717a;
+    font-size: 0.85rem;
+}
+
+.stats-bar {
+    display: flex;
+    gap: 12px;
+}
+
+.stat-badge {
+    background-color: #27272a;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    border: 1px solid #3f3f46;
+}
+
+.stat-badge.status-alert {
+    border-color: #ef4444;
+    color: #f87171;
+}
+
+/* Workspace Layout Split */
+.workspace {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    height: calc(100vh - 130px); /* Keeps workspace perfectly bounded between header & footer */
+    overflow: hidden;
+}
+
+/* SIDEBAR SCROLL FIX APPLIED HERE */
+.sidebar {
+    background-color: #16161a;
+    border-right: 1px solid #2a2a30;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto; /* Adds the native vertical scrollbar when elements exceed limits */
+}
+
+.section-title {
+    font-size: 0.9rem;
+    color: #a1a1aa;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    letter-spacing: 0.5px;
+}
+
+/* Drag Zone Element */
+.drop-zone {
+    border: 2px dashed #3f3f46;
+    padding: 24px 16px;
+    text-align: center;
+    background-color: #1a1a1e;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+    color: #a1a1aa;
+    flex-shrink: 0; /* Prevents the drop zone from smashing down when list grows */
+}
+
+.drop-zone-active {
+    border-color: #3b82f6;
+    background-color: #1e3a8a33;
+    color: #93c5fd;
+}
+
+/* Navigation System and Viewport */
+.main-stage {
+    display: flex;
+    flex-direction: column;
+    background-color: #121214;
+    overflow: hidden;
+}
+
+.stage-tabs {
+    background-color: #16161a;
+    border-bottom: 1px solid #2a2a30;
+    display: flex;
+    padding: 8px 16px 0 16px;
+    gap: 4px;
+    height: 45px;
+}
+
+.tab-btn {
+    background: none;
+    border: none;
+    color: #a1a1aa;
+    padding: 10px 16px;
+    font-family: inherit;
+    cursor: pointer;
+    border-radius: 6px 6px 0 0;
+    border: 1px solid transparent;
+}
+
+.tab-btn:hover {
+    color: #e4e4e7;
+    background-color: #27272a55;
+}
+
+.tab-btn.active {
+    color: #3b82f6;
+    background-color: #121214;
+    border-color: #2a2a30 #2a2a30 transparent #2a2a30;
+}
+
+.canvas-viewport {
+    flex-grow: 1;
+    padding: 30px;
+    overflow-y: auto;
+}
+
+.welcome-message {
+    max-width: 600px;
+    margin: 40px auto;
+    text-align: center;
+}
+
+.welcome-message h3 {
+    margin-bottom: 12px;
+    color: #e4e4e7;
+}
+
+.welcome-message p {
+    color: #a1a1aa;
+    line-height: 1.6;
+    font-size: 0.95rem;
+}
+
+/* Scrollable Stack Items */
+.plugin-list {
+    list-style: none;
+    overflow-y: visible;
+    flex-grow: 1;
+}
+
+.plugin-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    margin-bottom: 8px;
+    background-color: #1a1a1e;
+    border: 1px solid #2a2a30;
+    border-radius: 6px;
+}
+
+.plugin-item.card-demo {
+    border-left: 4px solid #3f3f46;
+    color: #71717a;
+}
+
+.drag-handle {
+    color: #4b5563;
+    cursor: grab;
+}
+
+/* Alert Interface Elements */
+.resolution-center {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.alert-card {
+    background-color: #1a1a1e;
+    border: 1px solid #3f3f46;
+    border-left: 4px solid #ef4444;
+    border-radius: 6px;
+    padding: 18px;
+}
+
+.alert-card h4 {
+    color: #f87171;
+    margin-bottom: 8px;
+}
+
+.impact-text {
+    color: #a1a1aa;
+    font-size: 0.9rem;
+    margin: 10px 0 14px 0;
+    padding-left: 10px;
+    border-left: 2px solid #52525b;
+}
+
+/* Button UI Toolkit */
+.card-actions {
+    display: flex;
+    gap: 10px;
+}
+
+button.btn-fix, button.btn-premium {
+    font-family: inherit;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    border: 1px solid transparent;
+}
+
+button.btn-fix {
+    background-color: #27272a;
+    color: #e4e4e7;
+    border-color: #3f3f46;
+}
+
+button.btn-premium {
+    background-color: #1e3a8a;
+    color: #93c5fd;
+    border-color: #2563eb;
+}
+
+/* Footer Fix */
+.app-footer {
+    background-color: #1a1a1e;
+    padding: 16px 24px;
+    border-top: 1px solid #2a2a30;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    height: 70px; /* Locked Footer Height */
+}
+
+.btn {
+    font-family: inherit;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.btn-primary {
+    background-color: #2563eb;
+    color: white;
+}
+
+.btn-secondary {
+    background-color: #27272a;
+    color: #e4e4e7;
+    border-color: #3f3f46;
+}
+
+.success-text {
+    color: #34d399;
+    font-weight: bold;
+}
