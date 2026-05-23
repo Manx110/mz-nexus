@@ -1,4 +1,4 @@
-// MZ-Nexus: Complete Advanced Core with Dual-Rule Topological Sorting & Patch Compiler
+// MZ-Nexus: Complete Production Core with Universal Tier Extraction & Topological Graph Alignment
 
 document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('file-drop-target');
@@ -9,7 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let loadedPluginsCache = [];
     let scriptFileStorage = {}; 
     let conflictMatrixCache = {};
-    let pluginDependenciesMap = {}; // Tracks internal rules dynamically
+    let pluginDependenciesMap = {}; 
+    let architecturalViolations = []; // Tracks out-of-order tier placement layout bugs
 
     // --- 1. TAB VIEWPORT MANAGER ---
     tabButtons.forEach(button => {
@@ -79,54 +80,91 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- 3. THE SOURCE CODE DEEP CHECKER & RULE PARSER ---
+    // --- 3. UNIVERSAL TIER DETECTOR EXTRACTOR FUNCTION ---
+    function extractUniversalTierLevel(plugin) {
+        // Look for literal tags in descriptions like [Tier 2] or Tier 3
+        const descMatch = plugin.description ? plugin.description.match(/(?:\[Tier\s*|Tier\s*)(\d+)/i) : null;
+        if (descMatch) return parseInt(descMatch[1]);
+
+        // Look for implicit naming conventions like VisuMZ_1_MainMenuCore
+        const nameMatch = plugin.name.match(/_(\d+)_/);
+        if (nameMatch) return parseInt(nameMatch[1]);
+
+        return null; // Return null if no systematic tier layout is detected
+    }
+
+    // --- 4. THE SOURCE CODE DEEP CHECKER & RULE PARSER ---
     async function runDeepProjectScan() {
         const listStack = document.getElementById('sortable-plugin-stack');
         listStack.innerHTML = '';
         conflictMatrixCache = {};
         pluginDependenciesMap = {}; 
+        architecturalViolations = [];
         let activeConflictsCount = 0;
         const globalPrototypeRegistry = {};
         let activePluginsCount = 0;
 
-        for (const plugin of loadedPluginsCache) {
+        // Establish structural tier tracking rules across the entire array loop
+        loadedPluginsCache.forEach(plugin => {
+            pluginDependenciesMap[plugin.name] = [];
+            const currentTier = extractUniversalTierLevel(plugin);
+            
+            if (currentTier !== null && plugin.status) {
+                // Scan the project to automatically map dependencies to lower tiers
+                loadedPluginsCache.forEach(otherPlugin => {
+                    if (otherPlugin.name !== plugin.name && otherPlugin.status) {
+                        const otherTier = extractUniversalTierLevel(otherPlugin);
+                        if (otherTier !== null && otherTier < currentTier) {
+                            // Enforce rule: This higher tier depends on the lower tier booting up first
+                            pluginDependenciesMap[plugin.name].push(otherPlugin.name);
+                        }
+                    }
+                });
+            }
+        });
+
+        // Track linear order placement to catch rule-breaking out of sequence entries
+        for (let i = 0; i < loadedPluginsCache.length; i++) {
+            const plugin = loadedPluginsCache[i];
             if (plugin.status) activePluginsCount++;
+            
+            const currentTier = extractUniversalTierLevel(plugin);
+
+            if (currentTier !== null && plugin.status) {
+                // Check all plugins loaded AFTER this one. If a lower tier layer is loaded below it, flag it!
+                for (let j = i + 1; j < loadedPluginsCache.length; j++) {
+                    const trackingPlugin = loadedPluginsCache[j];
+                    if (trackingPlugin.status) {
+                        const trackingTier = extractUniversalTierLevel(trackingPlugin);
+                        if (trackingTier !== null && trackingTier < currentTier) {
+                            architecturalViolations.push({
+                                badPlugin: plugin.name,
+                                badTier: currentTier,
+                                baselinePlugin: trackingPlugin.name,
+                                baselineTier: trackingTier
+                            });
+                        }
+                    }
+                }
+            }
+
             const fileName = `${plugin.name}.js`;
             let scanResult = { status: 'PENDING_SCRIPT', hooks: [] };
-            pluginDependenciesMap[plugin.name] = []; // Initialize empty rule track
 
             if (plugin.status && scriptFileStorage[fileName]) {
                 const codeText = await scriptFileStorage[fileName].text();
                 
-                // --- SMART DUAL-RULE EXTRACTOR ---
-                // 1. Scan for the official engine @base tag
+                // Fetch extra official @base engine links if present
                 const baseTagRegex = /@base\s+([A-Za-z0-9_]+)/g;
                 let baseMatch;
                 while ((baseMatch = baseTagRegex.exec(codeText)) !== null) {
-                    const dependencyName = baseMatch[1];
-                    if (!pluginDependenciesMap[plugin.name].includes(dependencyName)) {
-                        pluginDependenciesMap[plugin.name].push(dependencyName);
+                    const depName = baseMatch[1];
+                    if (!pluginDependenciesMap[plugin.name].includes(depName)) {
+                        pluginDependenciesMap[plugin.name].push(depName);
                     }
                 }
 
-                // 2. Scan for custom community [Tier X] text labels in descriptions
-                if (plugin.description && plugin.description.includes('[Tier')) {
-                    const tierMatch = plugin.description.match(/\[Tier\s*(\d+)\]/);
-                    if (tierMatch) {
-                        const currentTierNum = parseInt(tierMatch[1]);
-                        
-                        // Look through the project to find the previous tier dependencies
-                        loadedPluginsCache.forEach(otherPlugin => {
-                            if (otherPlugin.description && otherPlugin.description.includes(`[Tier ${currentTierNum - 1}]`)) {
-                                if (!pluginDependenciesMap[plugin.name].includes(otherPlugin.name)) {
-                                    pluginDependenciesMap[plugin.name].push(otherPlugin.name);
-                                }
-                            }
-                        });
-                    }
-                }
-
-                // CODE CONFLICT SCANNER
+                // CODE OVERWRITE SCANNER
                 const overwriteRegex = /(\w+)\.prototype\.(\w+)\s*=\s*function/g;
                 const aliasCallRegex = /\.call\(\s*this|\.apply\(\s*this/g;
                 let match;
@@ -153,12 +191,14 @@ document.addEventListener('DOMContentLoaded', () => {
             li.className = 'plugin-item';
             let badgeHTML = '<span class="badge" style="color:#71717a; font-size:0.8rem;">⚪ Need Script</span>';
 
+            const tierDisplayLevel = currentTier !== null ? ` [T${currentTier}]` : '';
+
             if (!plugin.status) {
                 li.style.borderLeft = '4px solid #52525b';
                 badgeHTML = '<span class="badge" style="color:#71717a; font-size:0.8rem;">⚪ Off</span>';
             } else if (scanResult.status === 'SAFE') {
                 li.style.borderLeft = '4px solid #34d399';
-                badgeHTML = '<span class="badge" style="color:#34d399; font-size:0.8rem;">🟢 Parsed</span>';
+                badgeHTML = `<span class="badge" style="color:#34d399; font-size:0.8rem;">🟢 Parsed${tierDisplayLevel}</span>`;
             } else {
                 li.style.borderLeft = '4px solid #f59e0b';
             }
@@ -187,21 +227,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-        document.getElementById('conflict-count').innerText = activeConflictsCount;
+        
+        // Sum total active alerts dynamically on dashboard counters
+        document.getElementById('conflict-count').innerText = activeConflictsCount + architecturalViolations.length;
         renderActiveView();
     }
 
-    // --- 4. VIEW RENDER CONTROLLERS ---
+    // --- 5. INTERACTIVE RESOLUTION VIEW CONTROL ---
     function renderResolutionCenter() {
-        if (loadedPluginsCache.length > 0 && Object.keys(conflictMatrixCache).length === 0) {
-            viewPanel.innerHTML = `<p class="success-text">🟢 Deep Scan Complete: No unhandled function overwrites detected in analyzed scripts.</p>`;
+        if (loadedPluginsCache.length > 0 && Object.keys(conflictMatrixCache).length === 0 && architecturalViolations.length === 0) {
+            viewPanel.innerHTML = `<p class="success-text">🟢 Structural Evaluation Complete: Load paths are correctly aligned.</p>`;
             return;
         }
 
         let html = '<div class="resolution-center">';
+
+        // RENDER METHOD 1: Output structural architectural sequence layout bugs
+        architecturalViolations.forEach((violation, index) => {
+            html += `
+                <div class="alert-card" style="border-left-color: #f59e0b;">
+                    <h4 style="color: #f59e0b;">⚠️ Sequence Violation: Structural Tier Placement Mismatch</h4>
+                    <p>The component <strong>${violation.badPlugin}</strong> (Tier ${violation.badTier}) is loading <strong>above</strong> foundational component <strong>${violation.baselinePlugin}</strong> (Tier ${violation.baselineTier}).</p>
+                    <p class="impact-text">Impact: Reversing internal vendor architecture frameworks causes runtime memory access failures inside engine instances.</p>
+                    <div class="card-actions">
+                        <button class="btn-fix" style="background:#27272a; color:#f59e0b; border-color:#f59e0b;" onclick="alert('Use the Auto-Optimize Order button below to automatically realign the universal tier graph.')">Requires Structural Alignment</button>
+                    </div>
+                </div>`;
+        });
+
+        // RENDER METHOD 2: Output physical function memory block overwrites
         for (const [pluginName, details] of Object.entries(conflictMatrixCache)) {
             html += `
-                <div class="alert-card" id="alert-${pluginName}">
+                <div class="alert-card">
                     <h4>⚠️ Critical Function Overwrite Verified: <code>${details.method}</code></h4>
                     <p>The code inside <strong>${pluginName}.js</strong> explicitly replaces this core routine without an internal backward-compatible alias loop.</p>
                     <p class="impact-text">Impact Statement: ${details.impact}</p>
@@ -216,17 +273,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderConflictMap() {
-        viewPanel.innerHTML = `<div style="background:#16161a; border:1px solid #2a2a30; padding:20px; border-radius:8px; height:100%;">
-            <h4 style="margin-bottom:15px; color:#3b82f6;">Interactive System Component Intersections</h4>
-            <p style="color:#a1a1aa; font-size:0.9rem;">Live map tracing tracking component vectors.</p>
-        </div>`;
+        viewPanel.innerHTML = `<div style="background:#16161a; border:1px solid #2a2a30; padding:20px; border-radius:8px; height:100%;"><h4 style="color:#3b82f6;">System Component Vector Nodes</h4></div>`;
     }
 
     function renderDatabaseAudit() {
-        viewPanel.innerHTML = `<p class="impact-text">Drop an entire /data folder to check data integrity parameters.</p>`;
+        viewPanel.innerHTML = `<p class="impact-text">Provide /data folder parameters to test system data profiles.</p>`;
     }
 
-    // --- 5. AUTOMATED SINGLE FIXER METHOD ---
     window.executeAutoOrderFix = function(offendingPlugin) {
         const pluginIdx = loadedPluginsCache.findIndex(p => p.name === offendingPlugin);
         if (pluginIdx > 0) {
@@ -237,7 +290,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- 6. ADVANCED COMPATIBILITY SCRIPT COMPILER ---
     window.triggerPremiumCheckout = function(offendingPlugin, brokenMethod) {
         const targetPlugin = offendingPlugin || "Unknown_Plugin";
         const targetMethod = brokenMethod || "Unknown.prototype.method";
@@ -254,33 +306,31 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(downloadLink);
     }
 
-    // --- 7. ADVANCED TOPOLOGICAL SORTING OPTIMIZER WITH TIER COMPLIANCE ---
+    // --- 5. AUTOMATED TOPOLOGICAL SORTING OPTIMIZER ---
     document.getElementById('btn-optimize').addEventListener('click', async () => {
         if (loadedPluginsCache.length === 0) {
             alert("No active configuration array found.");
             return;
         }
 
-        alert("⚙️ Running Topological Graph Analysis...\nEvaluating file structures alongside official @base requirements and community [Tier] matrix rules...");
+        alert("⚙️ Running Universal Topological Graph Alignment...\nEvaluating standard @base hierarchies alongside custom vendor [Tier] structure parameters...");
 
         const visited = {};
         const tempMark = {};
         const sortedStack = [];
         const pluginMap = {};
 
-        // Index the collection
         loadedPluginsCache.forEach(p => { pluginMap[p.name] = p; });
 
         function visit(nodeName) {
             if (!pluginMap[nodeName]) return; 
             if (tempMark[nodeName]) {
-                console.warn(`Circular dependency loop warning intercepted on: ${nodeName}`);
+                console.warn(`Circular reference chain bypassed on node elements: ${nodeName}`);
                 return; 
             }
             if (!visited[nodeName]) {
                 tempMark[nodeName] = true;
                 
-                // Fetch rule tracks mapped dynamically in deep scan loop
                 const dependencies = pluginDependenciesMap[nodeName] || [];
                 dependencies.forEach(dep => {
                     visit(dep); 
@@ -292,18 +342,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Run graph sort loop
         loadedPluginsCache.forEach(p => {
             if (!visited[p.name]) visit(p.name);
         });
 
         loadedPluginsCache = sortedStack;
 
-        alert(`🚀 Graph Sorting Engine Optimization Complete!\nRe-sequenced your hierarchy stack while maintaining internal metadata restrictions and descriptions.`);
+        alert(`🚀 Universal Tier Layout Matrix Alignment Complete!\nAll system tiers sorted and realigned in unified sequence directions.`);
         await runDeepProjectScan();
     });
 
-    // --- 8. DATA EXPORT SYSTEM ---
+    // --- 6. DATA EXPORT SYSTEM ---
     document.getElementById('btn-export').addEventListener('click', () => {
         if (loadedPluginsCache.length === 0) return;
         const outputString = `var $plugins =\n${JSON.stringify(loadedPluginsCache, null, 2)};\n`;
