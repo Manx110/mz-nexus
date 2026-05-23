@@ -1,4 +1,4 @@
-// MZ-Nexus: Complete Advanced Core with Dual-Rule Topological Sorting, Patch Compiler & Auto-Binding
+// MZ-Nexus: Complete Advanced Core with Dual-Rule Topological Sorting, Patch Compiler & Adjacency Binding
 
 document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('file-drop-target');
@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let scriptFileStorage = {}; 
     let conflictMatrixCache = {};
     let pluginDependenciesMap = {}; 
-    let architecturalViolations = []; // Tracks out-of-order tier placement layout bugs
+    let architecturalViolations = []; 
 
     // --- 1. TAB VIEWPORT MANAGER ---
     tabButtons.forEach(button => {
@@ -102,7 +102,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const globalPrototypeRegistry = {};
         let activePluginsCount = 0;
 
-        // Establish structural tier tracking rules
         loadedPluginsCache.forEach(plugin => {
             pluginDependenciesMap[plugin.name] = [];
             const currentTier = extractUniversalTierLevel(plugin);
@@ -145,9 +144,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const fileName = `${plugin.name}.js`;
             let scanResult = { status: 'PENDING_SCRIPT', hooks: [] };
 
-            // --- SMART TRI-RULE EXTRACTOR ---
-            
-            // 1 & 2: Extract File Text Rules (Base Tags & Explicit Descriptions)
             if (plugin.status && scriptFileStorage[fileName]) {
                 const codeText = await scriptFileStorage[fileName].text();
                 
@@ -160,7 +156,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                // CODE OVERWRITE SCANNER
                 const overwriteRegex = /(\w+)\.prototype\.(\w+)\s*=\s*function/g;
                 const aliasCallRegex = /\.call\(\s*this|\.apply\(\s*this/g;
                 let match;
@@ -183,16 +178,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // 3. Auto-Bind MZ-Nexus Generated Compatibility Patches (Runs even if script text isn't provided)
             if (plugin.name.startsWith('Nexus_Patch_')) {
                 const targetBullyPlugin = plugin.name.replace('Nexus_Patch_', '');
                 
-                // Rule A: The patch MUST load directly after the bully plugin
                 if (!pluginDependenciesMap[plugin.name].includes(targetBullyPlugin)) {
                     pluginDependenciesMap[plugin.name].push(targetBullyPlugin);
                 }
                 
-                // Rule B (The Sandwich Matrix): Force reliant plugins to link to the patch instead
                 Object.keys(pluginDependenciesMap).forEach(key => {
                     if (key !== plugin.name && pluginDependenciesMap[key].includes(targetBullyPlugin)) {
                         const idx = pluginDependenciesMap[key].indexOf(targetBullyPlugin);
@@ -316,7 +308,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(downloadLink);
     }
 
-    // --- 6. AUTOMATED TOPOLOGICAL SORTING OPTIMIZER ---
+    // --- 6. AUTOMATED TOPOLOGICAL SORTING OPTIMIZER WITH ADJACENCY BINDING ---
     document.getElementById('btn-optimize').addEventListener('click', async () => {
         if (loadedPluginsCache.length === 0) {
             alert("No active configuration array found.");
@@ -358,7 +350,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
         loadedPluginsCache = sortedStack;
 
-        alert(`🚀 Universal Tier Layout Matrix Alignment Complete!\nAll system tiers sorted and realigned in unified sequence directions.`);
+        // --- NEW: STRICT ADJACENCY BINDING (The Snap-To-Grid Pass) ---
+        // Pull out all patches so they don't wander randomly within their tier boundaries
+        const patchesToSnap = [];
+        loadedPluginsCache = loadedPluginsCache.filter(p => {
+            if (p.name.startsWith('Nexus_Patch_')) {
+                patchesToSnap.push(p);
+                return false; 
+            }
+            return true;
+        });
+
+        // Forcibly inject them exactly one slot below their target plugin
+        patchesToSnap.forEach(patch => {
+            const targetName = patch.name.replace('Nexus_Patch_', '');
+            const targetIdx = loadedPluginsCache.findIndex(p => p.name === targetName);
+            if (targetIdx !== -1) {
+                loadedPluginsCache.splice(targetIdx + 1, 0, patch);
+            } else {
+                loadedPluginsCache.push(patch); // Fallback if the target is missing
+            }
+        });
+
+        alert(`🚀 Universal Tier Layout Matrix Alignment Complete!\nAll system tiers sorted and patches snapped securely to their targets.`);
         await runDeepProjectScan();
     });
 
