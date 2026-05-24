@@ -1,11 +1,10 @@
-// MZ-Nexus: Complete Advanced Core with Zip Compiler, Topological Graph & Database Audit Subsystem
+// MZ-Nexus: Complete Advanced Core with Zip Compiler, Topological Graph & Advanced Database QA Subsystem
 
 document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('file-drop-target');
     const tabButtons = document.querySelectorAll('.tab-btn');
     const viewPanel = document.getElementById('active-view-panel');
     
-    // Core Plugin Variables
     let currentTab = 'resolution';
     let loadedPluginsCache = [];
     let scriptFileStorage = {}; 
@@ -13,7 +12,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let pluginDependenciesMap = {}; 
     let architecturalViolations = []; 
 
-    // Database Audit Variables
     let databaseFiles = {};
     let databaseAlerts = [];
 
@@ -63,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let hasDatabaseFiles = false;
         let hasPluginFiles = false;
 
-        // Process files concurrently
         await Promise.all(files.map(async file => {
             if (file.name.endsWith('.js') && file.name !== 'plugins.js') {
                 scriptFileStorage[file.name] = file;
@@ -112,8 +109,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function extractUniversalTierLevel(plugin) {
         const descMatch = plugin.description ? plugin.description.match(/(?:\[Tier\s*|Tier\s*)(\d+)/i) : null;
         if (descMatch) return parseInt(descMatch[1]);
+
         const nameMatch = plugin.name.match(/_(\d+)_/);
         if (nameMatch) return parseInt(nameMatch[1]);
+
         return null; 
     }
 
@@ -130,6 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadedPluginsCache.forEach(plugin => {
             pluginDependenciesMap[plugin.name] = [];
             const currentTier = extractUniversalTierLevel(plugin);
+            
             if (currentTier !== null && plugin.status) {
                 loadedPluginsCache.forEach(otherPlugin => {
                     if (otherPlugin.name !== plugin.name && otherPlugin.status) {
@@ -145,6 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < loadedPluginsCache.length; i++) {
             const plugin = loadedPluginsCache[i];
             if (plugin.status) activePluginsCount++;
+            
             const currentTier = extractUniversalTierLevel(plugin);
 
             if (currentTier !== null && plugin.status) {
@@ -169,6 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (plugin.status && scriptFileStorage[fileName]) {
                 const codeText = await scriptFileStorage[fileName].text();
+                
                 const baseTagRegex = /@base\s+([A-Za-z0-9_]+)/g;
                 let baseMatch;
                 while ((baseMatch = baseTagRegex.exec(codeText)) !== null) {
@@ -192,7 +194,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const safetyType = hasAliasCall ? 'SAFE_ALIAS' : 'CRITICAL_OVERWRITE';
                     
                     scanResult.hooks.push({ methodKey, safetyType });
-                    if (!globalPrototypeRegistry[methodKey]) globalPrototypeRegistry[methodKey] = [];
+
+                    if (!globalPrototypeRegistry[methodKey]) {
+                        globalPrototypeRegistry[methodKey] = [];
+                    }
                     globalPrototypeRegistry[methodKey].push({ pluginName: plugin.name, safetyType });
                 }
             }
@@ -201,9 +206,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 let targetBullyPlugin = plugin.name.split('Nexus_Patch_')[1];
                 if (targetBullyPlugin) {
                     targetBullyPlugin = targetBullyPlugin.replace(/\s\(\d+\)$/, '');
+                    
                     if (!pluginDependenciesMap[plugin.name].includes(targetBullyPlugin)) {
                         pluginDependenciesMap[plugin.name].push(targetBullyPlugin);
                     }
+                    
                     Object.keys(pluginDependenciesMap).forEach(key => {
                         if (key !== plugin.name && pluginDependenciesMap[key].includes(targetBullyPlugin)) {
                             const idx = pluginDependenciesMap[key].indexOf(targetBullyPlugin);
@@ -256,7 +263,9 @@ document.addEventListener('DOMContentLoaded', () => {
             let targetName = patch.name.split('Nexus_Patch_')[1];
             if (targetName) {
                 targetName = targetName.replace(/\s\(\d+\)$/, '');
-                if (conflictMatrixCache[targetName]) delete conflictMatrixCache[targetName]; 
+                if (conflictMatrixCache[targetName]) {
+                    delete conflictMatrixCache[targetName]; 
+                }
             }
         });
 
@@ -264,7 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('conflict-count').innerText = activeConflictsCount + architecturalViolations.length;
     }
 
-    // --- 5. THE NEW DATABASE AUDIT ENGINE ---
+    // --- 5. THE ADVANCED DATABASE AUDIT ENGINE ---
     function runDatabaseAudit() {
         databaseAlerts = [];
         for (const [fileName, jsonText] of Object.entries(databaseFiles)) {
@@ -273,13 +282,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!Array.isArray(dataArray)) continue;
 
                 dataArray.forEach((entry, index) => {
-                    if (!entry) return; // Skip the null 0 index common in MZ
+                    if (!entry) return; 
                     const name = entry.name || `Unnamed Object (ID: ${entry.id || index})`;
 
-                    // Check 1: Unclosed Notetags
+                    // --- CHECK 1: ADVANCED BRACKET PARSER ---
                     if (entry.note) {
-                        const openBrackets = (entry.note.match(/</g) || []).length;
-                        const closeBrackets = (entry.note.match(/>/g) || []).length;
+                        // 1. Strip out complex VisuStella/Yanfly script blocks first
+                        let sanitizedNote = entry.note.replace(/<JS[\s\S]*?<\/JS[^>]*>/ig, '');
+                        sanitizedNote = sanitizedNote.replace(/<Custom[\s\S]*?<\/Custom[^>]*>/ig, '');
+                        
+                        // 2. Strip out math comparison operators that are isolated with spaces (e.g., " a > b ")
+                        sanitizedNote = sanitizedNote.replace(/\s[<>]\s/g, '');
+                        
+                        const openBrackets = (sanitizedNote.match(/</g) || []).length;
+                        const closeBrackets = (sanitizedNote.match(/>/g) || []).length;
+                        
                         if (openBrackets !== closeBrackets) {
                             databaseAlerts.push({
                                 file: fileName,
@@ -287,24 +304,40 @@ document.addEventListener('DOMContentLoaded', () => {
                                 id: entry.id || index,
                                 type: 'Syntax Error',
                                 issue: 'Unclosed Notetag Brackets',
-                                details: `The note box has ${openBrackets} opening '<' brackets and ${closeBrackets} closing '>' brackets. This asymmetry will cause complex plugin systems to fail silently.`
+                                details: `The non-script portions of the note box have ${openBrackets} opening '<' brackets and ${closeBrackets} closing '>' brackets. This asymmetry will cause complex plugin parameters to fail.`
                             });
                         }
                     }
 
-                    // Check 2: Broken Damage Formulas
+                    // --- CHECK 2: RUNTIME FORMULA SANDBOX ---
                     if (entry.damage && entry.damage.formula && entry.damage.formula.trim() !== '') {
                         try {
-                            // MZ evaluates formulas dynamically using a, b, v, sign. We attempt to compile it.
-                            new Function('a', 'b', 'v', 'sign', `return ${entry.damage.formula}`);
+                            const testFunc = new Function('a', 'b', 'v', 'sign', `return ${entry.damage.formula}`);
+                            
+                            // Create a fake actor with standard MZ properties to test the math execution
+                            const baseStats = { hp:100, mp:50, tp:10, mhp:100, mmp:50, atk:20, def:10, mat:20, mdf:10, agi:15, luk:15, level:5 };
+                            baseStats.isStateAffected = function() { return false; };
+                            baseStats.elementRate = function() { return 1; };
+                            baseStats.addState = function() {};
+                            
+                            // Fake variables array that always returns 5 instead of crashing
+                            const dummyV = new Proxy([], { get: function(target, prop) { return 5; } });
+                            
+                            // Actively execute the formula string
+                            const result = testFunc(baseStats, baseStats, dummyV, 1);
+                            
+                            // If they typed 'a.atkk', it evaluates to undefined. undefined * 2 = NaN. Catch it here!
+                            if (typeof result === 'number' && isNaN(result)) {
+                                throw new Error(`Execution evaluated to NaN (Not-a-Number).`);
+                            }
                         } catch (err) {
                             databaseAlerts.push({
                                 file: fileName,
                                 item: name,
                                 id: entry.id || index,
                                 type: 'Logic Error',
-                                issue: 'Broken Damage Formula Compilation',
-                                details: `JavaScript compiler rejection: "${err.message}". <br><code style="background:#121214; padding:2px 6px; border-radius:4px; margin-top:4px; display:inline-block;">Formula: ${entry.damage.formula}</code>`
+                                issue: 'Broken Damage Formula Execution',
+                                details: `Engine test failure: "${err.message}". This usually means a misspelled stat reference (e.g. 'a.atkk' instead of 'a.atk') or incomplete math operators.<br><code style="background:#121214; padding:2px 6px; border-radius:4px; margin-top:4px; display:inline-block; color:#f87171;">Formula: ${entry.damage.formula}</code>`
                             });
                         }
                     }
