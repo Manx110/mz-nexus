@@ -1,16 +1,21 @@
-// MZ-Nexus: Complete Advanced Core with Zip Compiler & Robust Adjacency Binding
+// MZ-Nexus: Complete Advanced Core with Zip Compiler, Topological Graph & Database Audit Subsystem
 
 document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('file-drop-target');
     const tabButtons = document.querySelectorAll('.tab-btn');
     const viewPanel = document.getElementById('active-view-panel');
     
+    // Core Plugin Variables
     let currentTab = 'resolution';
     let loadedPluginsCache = [];
     let scriptFileStorage = {}; 
     let conflictMatrixCache = {};
     let pluginDependenciesMap = {}; 
     let architecturalViolations = []; 
+
+    // Database Audit Variables
+    let databaseFiles = {};
+    let databaseAlerts = [];
 
     // --- 1. TAB VIEWPORT MANAGER ---
     tabButtons.forEach(button => {
@@ -23,11 +28,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function renderActiveView() {
-        if (loadedPluginsCache.length === 0) {
+        if (loadedPluginsCache.length === 0 && Object.keys(databaseFiles).length === 0) {
             viewPanel.innerHTML = `
                 <div class="welcome-message">
                     <h3>System Diagnostics Ready</h3>
-                    <p>Drop your project's <code>plugins.js</code> here to analyze your load order framework.</p>
+                    <p>Drop your <code>plugins.js</code> here to analyze load order, or drop <code>.json</code> database files to audit syntax.</p>
                 </div>`;
             return;
         }
@@ -55,39 +60,60 @@ document.addEventListener('DOMContentLoaded', () => {
         const files = Array.from(e.dataTransfer.files);
         if (files.length === 0) return;
 
-        files.forEach(file => {
+        let hasDatabaseFiles = false;
+        let hasPluginFiles = false;
+
+        // Process files concurrently
+        await Promise.all(files.map(async file => {
             if (file.name.endsWith('.js') && file.name !== 'plugins.js') {
                 scriptFileStorage[file.name] = file;
+            } else if (file.name === 'plugins.js') {
+                hasPluginFiles = true;
+                const text = await file.text();
+                try {
+                    const startArrayIdx = text.indexOf('[');
+                    const endArrayIdx = text.lastIndexOf(']');
+                    if (startArrayIdx !== -1 && endArrayIdx !== -1) {
+                        loadedPluginsCache = JSON.parse(text.substring(startArrayIdx, endArrayIdx + 1));
+                    }
+                } catch (err) {
+                    console.error("Plugins.js parse error", err);
+                }
+            } else if (file.name.endsWith('.json')) {
+                hasDatabaseFiles = true;
+                databaseFiles[file.name] = await file.text();
             }
-        });
+        }));
 
-        const configFile = files.find(f => f.name === 'plugins.js');
-
-        if (configFile) {
-            const text = await configFile.text();
-            try {
-                const startArrayIdx = text.indexOf('[');
-                const endArrayIdx = text.lastIndexOf(']');
-                if (startArrayIdx === -1 || endArrayIdx === -1) throw new Error();
-                
-                loadedPluginsCache = JSON.parse(text.substring(startArrayIdx, endArrayIdx + 1));
-                await runDeepProjectScan();
-            } catch (err) {
-                viewPanel.innerHTML = `<p style="color:#ef4444; font-weight:bold;">⚠️ Error: Invalid plugins.js file format structure.</p>`;
-            }
-        } else if (loadedPluginsCache.length > 0) {
+        if (hasPluginFiles || loadedPluginsCache.length > 0) {
             await runDeepProjectScan();
+            if (!hasDatabaseFiles) {
+                currentTab = 'resolution';
+                switchTabUI('resolution');
+            }
         }
+        
+        if (hasDatabaseFiles) {
+            runDatabaseAudit();
+            currentTab = 'database';
+            switchTabUI('database');
+        }
+        
+        renderActiveView();
     });
+
+    function switchTabUI(tabId) {
+        tabButtons.forEach(btn => btn.classList.remove('active'));
+        const activeBtn = document.querySelector(`[data-tab="${tabId}"]`);
+        if (activeBtn) activeBtn.classList.add('active');
+    }
 
     // --- 3. UNIVERSAL TIER DETECTOR EXTRACTOR FUNCTION ---
     function extractUniversalTierLevel(plugin) {
         const descMatch = plugin.description ? plugin.description.match(/(?:\[Tier\s*|Tier\s*)(\d+)/i) : null;
         if (descMatch) return parseInt(descMatch[1]);
-
         const nameMatch = plugin.name.match(/_(\d+)_/);
         if (nameMatch) return parseInt(nameMatch[1]);
-
         return null; 
     }
 
@@ -104,7 +130,6 @@ document.addEventListener('DOMContentLoaded', () => {
         loadedPluginsCache.forEach(plugin => {
             pluginDependenciesMap[plugin.name] = [];
             const currentTier = extractUniversalTierLevel(plugin);
-            
             if (currentTier !== null && plugin.status) {
                 loadedPluginsCache.forEach(otherPlugin => {
                     if (otherPlugin.name !== plugin.name && otherPlugin.status) {
@@ -120,7 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < loadedPluginsCache.length; i++) {
             const plugin = loadedPluginsCache[i];
             if (plugin.status) activePluginsCount++;
-            
             const currentTier = extractUniversalTierLevel(plugin);
 
             if (currentTier !== null && plugin.status) {
@@ -145,7 +169,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (plugin.status && scriptFileStorage[fileName]) {
                 const codeText = await scriptFileStorage[fileName].text();
-                
                 const baseTagRegex = /@base\s+([A-Za-z0-9_]+)/g;
                 let baseMatch;
                 while ((baseMatch = baseTagRegex.exec(codeText)) !== null) {
@@ -169,10 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const safetyType = hasAliasCall ? 'SAFE_ALIAS' : 'CRITICAL_OVERWRITE';
                     
                     scanResult.hooks.push({ methodKey, safetyType });
-
-                    if (!globalPrototypeRegistry[methodKey]) {
-                        globalPrototypeRegistry[methodKey] = [];
-                    }
+                    if (!globalPrototypeRegistry[methodKey]) globalPrototypeRegistry[methodKey] = [];
                     globalPrototypeRegistry[methodKey].push({ pluginName: plugin.name, safetyType });
                 }
             }
@@ -181,11 +201,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 let targetBullyPlugin = plugin.name.split('Nexus_Patch_')[1];
                 if (targetBullyPlugin) {
                     targetBullyPlugin = targetBullyPlugin.replace(/\s\(\d+\)$/, '');
-                    
                     if (!pluginDependenciesMap[plugin.name].includes(targetBullyPlugin)) {
                         pluginDependenciesMap[plugin.name].push(targetBullyPlugin);
                     }
-                    
                     Object.keys(pluginDependenciesMap).forEach(key => {
                         if (key !== plugin.name && pluginDependenciesMap[key].includes(targetBullyPlugin)) {
                             const idx = pluginDependenciesMap[key].indexOf(targetBullyPlugin);
@@ -198,7 +216,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const li = document.createElement('li');
             li.className = 'plugin-item';
             let badgeHTML = '<span class="badge" style="color:#71717a; font-size:0.8rem;">⚪ Need Script</span>';
-
             const tierDisplayLevel = currentTier !== null ? ` [T${currentTier}]` : '';
 
             if (!plugin.status) {
@@ -226,7 +243,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const finalActiveHandler = modifiers[modifiers.length - 1];
                 if (finalActiveHandler.safetyType === 'CRITICAL_OVERWRITE') {
                     const disabledPlugins = [...new Set(modifiers.slice(0, -1).map(m => m.pluginName))];
-                    
                     conflictMatrixCache[finalActiveHandler.pluginName] = {
                         method: method,
                         impact: `Completely overwrites native structure. Deactivates core modifications made by: [${disabledPlugins.join(', ')}].`
@@ -240,18 +256,73 @@ document.addEventListener('DOMContentLoaded', () => {
             let targetName = patch.name.split('Nexus_Patch_')[1];
             if (targetName) {
                 targetName = targetName.replace(/\s\(\d+\)$/, '');
-                if (conflictMatrixCache[targetName]) {
-                    delete conflictMatrixCache[targetName]; 
-                }
+                if (conflictMatrixCache[targetName]) delete conflictMatrixCache[targetName]; 
             }
         });
 
         const activeConflictsCount = Object.keys(conflictMatrixCache).length;
         document.getElementById('conflict-count').innerText = activeConflictsCount + architecturalViolations.length;
-        renderActiveView();
     }
 
-    // --- 5. INTERACTIVE RESOLUTION VIEW CONTROL ---
+    // --- 5. THE NEW DATABASE AUDIT ENGINE ---
+    function runDatabaseAudit() {
+        databaseAlerts = [];
+        for (const [fileName, jsonText] of Object.entries(databaseFiles)) {
+            try {
+                const dataArray = JSON.parse(jsonText);
+                if (!Array.isArray(dataArray)) continue;
+
+                dataArray.forEach((entry, index) => {
+                    if (!entry) return; // Skip the null 0 index common in MZ
+                    const name = entry.name || `Unnamed Object (ID: ${entry.id || index})`;
+
+                    // Check 1: Unclosed Notetags
+                    if (entry.note) {
+                        const openBrackets = (entry.note.match(/</g) || []).length;
+                        const closeBrackets = (entry.note.match(/>/g) || []).length;
+                        if (openBrackets !== closeBrackets) {
+                            databaseAlerts.push({
+                                file: fileName,
+                                item: name,
+                                id: entry.id || index,
+                                type: 'Syntax Error',
+                                issue: 'Unclosed Notetag Brackets',
+                                details: `The note box has ${openBrackets} opening '<' brackets and ${closeBrackets} closing '>' brackets. This asymmetry will cause complex plugin systems to fail silently.`
+                            });
+                        }
+                    }
+
+                    // Check 2: Broken Damage Formulas
+                    if (entry.damage && entry.damage.formula && entry.damage.formula.trim() !== '') {
+                        try {
+                            // MZ evaluates formulas dynamically using a, b, v, sign. We attempt to compile it.
+                            new Function('a', 'b', 'v', 'sign', `return ${entry.damage.formula}`);
+                        } catch (err) {
+                            databaseAlerts.push({
+                                file: fileName,
+                                item: name,
+                                id: entry.id || index,
+                                type: 'Logic Error',
+                                issue: 'Broken Damage Formula Compilation',
+                                details: `JavaScript compiler rejection: "${err.message}". <br><code style="background:#121214; padding:2px 6px; border-radius:4px; margin-top:4px; display:inline-block;">Formula: ${entry.damage.formula}</code>`
+                            });
+                        }
+                    }
+                });
+            } catch (e) {
+                databaseAlerts.push({
+                    file: fileName,
+                    item: 'N/A',
+                    id: 'N/A',
+                    type: 'Critical Error',
+                    issue: 'Invalid JSON Structure',
+                    details: 'This file could not be parsed. The data structure may be corrupted.'
+                });
+            }
+        }
+    }
+
+    // --- 6. INTERACTIVE RESOLUTION VIEW CONTROL ---
     function renderResolutionCenter() {
         if (loadedPluginsCache.length > 0 && Object.keys(conflictMatrixCache).length === 0 && architecturalViolations.length === 0) {
             viewPanel.innerHTML = `<p class="success-text">🟢 Structural Evaluation Complete: Load paths are correctly aligned and active patches have successfully bridged execution logic.</p>`;
@@ -259,7 +330,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         let html = '<div class="resolution-center">';
-
         architecturalViolations.forEach((violation) => {
             html += `
                 <div class="alert-card" style="border-left-color: #f59e0b;">
@@ -289,11 +359,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderConflictMap() {
-        viewPanel.innerHTML = `<div style="background:#16161a; border:1px solid #2a2a30; padding:20px; border-radius:8px; height:100%;"><h4 style="color:#3b82f6;">System Component Vector Nodes</h4></div>`;
+        viewPanel.innerHTML = `<div style="background:#16161a; border:1px solid #2a2a30; padding:20px; border-radius:8px; height:100%;"><h4 style="color:#3b82f6;">System Component Vector Nodes</h4><p style="color:#a1a1aa; font-size:0.9rem;">Live map tracing tracking component vectors.</p></div>`;
     }
 
     function renderDatabaseAudit() {
-        viewPanel.innerHTML = `<p class="impact-text">Provide /data folder parameters to test system data profiles.</p>`;
+        if (Object.keys(databaseFiles).length === 0) {
+            viewPanel.innerHTML = `
+                <div class="welcome-message" style="border: 1px dashed #3f3f46; background: transparent;">
+                    <h3 style="color:#a1a1aa;">QA Engine Awaiting Data</h3>
+                    <p>Drop your <code>/data</code> folder JSON files here (e.g., Items.json, Skills.json) to execute a deep structural audit.</p>
+                </div>`;
+            return;
+        }
+
+        if (databaseAlerts.length === 0) {
+            viewPanel.innerHTML = `<p class="success-text">🟢 Database Audit Complete: Scanned ${Object.keys(databaseFiles).length} datasets securely. Zero syntax anomalies or formula rejections detected!</p>`;
+            return;
+        }
+
+        let html = '<div class="resolution-center"><h3 style="color:#ef4444; margin-bottom: 15px;">Database QA Anomalies Detected</h3>';
+        databaseAlerts.forEach(alert => {
+            html += `
+                <div class="alert-card" style="border-left-color: #ef4444;">
+                    <h4 style="color: #ef4444;">🚨 ${alert.type}: ${alert.issue}</h4>
+                    <p style="color:#e4e4e7; margin-bottom:4px;"><strong>Target:</strong> ${alert.item} (ID: ${alert.id}) | <strong>Source:</strong> ${alert.file}</p>
+                    <p class="impact-text">${alert.details}</p>
+                </div>`;
+        });
+        html += '</div>';
+        viewPanel.innerHTML = html;
     }
 
     window.executeAutoOrderFix = function(offendingPlugin) {
@@ -306,14 +400,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- NEW: INLINE ZIP COMPILER (BYPASSES WINDOWS SAC) ---
+    // --- ZIP COMPILER ---
     window.triggerPremiumCheckout = async function(offendingPlugin, brokenMethod) {
         const targetPlugin = offendingPlugin || "Unknown_Plugin";
         const targetMethod = brokenMethod || "Unknown.prototype.method";
 
-        // Safety check to ensure the JSZip CDN loaded correctly
         if (typeof JSZip === 'undefined') {
-            alert("⚠️ Network Error: Unable to reach the compression engine. Please check your internet connection.");
+            alert("⚠️ Network Error: Unable to reach the compression engine.");
             return;
         }
 
@@ -323,23 +416,20 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const readmeContent = `=======================================\nMZ-NEXUS COMPATIBILITY PATCH ENGINE\n=======================================\n\nThank you for generating this compatibility patch!\n\nINSTALLATION INSTRUCTIONS:\n1. Extract this .zip folder.\n2. Copy the file 'Nexus_Patch_${targetPlugin}.js' into your project's js/plugins/ folder.\n3. Open your RPG Maker MZ Plugin Manager.\n4. Add the patch and ensure it is placed directly BELOW ${targetPlugin}.\n\nIf you use the MZ-Nexus Auto-Optimize Order tool, it will automatically snap this patch into the correct position for you!`;
 
-        // Initialize zip folder and add the two files
         const zip = new JSZip();
         zip.file(`Nexus_Patch_${targetPlugin}.js`, patchContent);
         zip.file(`README_INSTALLATION.txt`, readmeContent);
 
-        // Generate the blob and trigger standard download
         const content = await zip.generateAsync({ type: "blob" });
         const downloadLink = document.createElement('a');
         downloadLink.href = URL.createObjectURL(content);
         downloadLink.download = `Nexus_Patch_${targetPlugin}.zip`;
-        
         document.body.appendChild(downloadLink);
         downloadLink.click();
         document.body.removeChild(downloadLink);
     }
 
-    // --- 6. AUTOMATED TOPOLOGICAL SORTING OPTIMIZER WITH ADJACENCY BINDING ---
+    // --- AUTOMATED OPTIMIZER WITH ADJACENCY BINDING ---
     document.getElementById('btn-optimize').addEventListener('click', async () => {
         if (loadedPluginsCache.length === 0) {
             alert("No active configuration array found.");
@@ -357,18 +447,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function visit(nodeName) {
             if (!pluginMap[nodeName]) return; 
-            if (tempMark[nodeName]) {
-                console.warn(`Circular reference chain bypassed on node elements: ${nodeName}`);
-                return; 
-            }
+            if (tempMark[nodeName]) return; 
             if (!visited[nodeName]) {
                 tempMark[nodeName] = true;
-                
                 const dependencies = pluginDependenciesMap[nodeName] || [];
-                dependencies.forEach(dep => {
-                    visit(dep); 
-                });
-
+                dependencies.forEach(dep => visit(dep));
                 tempMark[nodeName] = false;
                 visited[nodeName] = true;
                 sortedStack.push(pluginMap[nodeName]);
@@ -394,7 +477,6 @@ document.addEventListener('DOMContentLoaded', () => {
             let targetName = patch.name.split('Nexus_Patch_')[1];
             if (targetName) {
                 targetName = targetName.replace(/\s\(\d+\)$/, ''); 
-                
                 const targetIdx = loadedPluginsCache.findIndex(p => p.name === targetName);
                 if (targetIdx !== -1) {
                     loadedPluginsCache.splice(targetIdx + 1, 0, patch);
@@ -410,7 +492,6 @@ document.addEventListener('DOMContentLoaded', () => {
         await runDeepProjectScan();
     });
 
-    // --- 7. DATA EXPORT SYSTEM ---
     document.getElementById('btn-export').addEventListener('click', () => {
         if (loadedPluginsCache.length === 0) return;
         const outputString = `var $plugins =\n${JSON.stringify(loadedPluginsCache, null, 2)};\n`;
