@@ -1,4 +1,4 @@
-// MZ-Nexus: Complete Advanced Core with Patch Immunity Sweep & Deduplication
+// MZ-Nexus: Complete Advanced Core with Dual-Rule Topological Sorting, Patch Modal UI & Robust Adjacency Binding
 
 document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('file-drop-target');
@@ -225,7 +225,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (modifiers.length > 1) {
                 const finalActiveHandler = modifiers[modifiers.length - 1];
                 if (finalActiveHandler.safetyType === 'CRITICAL_OVERWRITE') {
-                    // Fix Duplicate Array Bug: Use Set to ensure unique plugin names
                     const disabledPlugins = [...new Set(modifiers.slice(0, -1).map(m => m.pluginName))];
                     
                     conflictMatrixCache[finalActiveHandler.pluginName] = {
@@ -236,20 +235,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        // --- NEW: THE IMMUNITY SWEEP ---
-        // If a patch is active, suppress the alert for its target plugin!
         const activePatches = loadedPluginsCache.filter(p => p.status && p.name.includes('Nexus_Patch_'));
         activePatches.forEach(patch => {
             let targetName = patch.name.split('Nexus_Patch_')[1];
             if (targetName) {
                 targetName = targetName.replace(/\s\(\d+\)$/, '');
                 if (conflictMatrixCache[targetName]) {
-                    delete conflictMatrixCache[targetName]; // Clear the alert!
+                    delete conflictMatrixCache[targetName]; 
                 }
             }
         });
 
-        // Tally final conflicts after suppression
         const activeConflictsCount = Object.keys(conflictMatrixCache).length;
         document.getElementById('conflict-count').innerText = activeConflictsCount + architecturalViolations.length;
         renderActiveView();
@@ -310,20 +306,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- NEW: INLINE UI MODAL COMPILER (BYPASSES WINDOWS SAC) ---
     window.triggerPremiumCheckout = function(offendingPlugin, brokenMethod) {
         const targetPlugin = offendingPlugin || "Unknown_Plugin";
         const targetMethod = brokenMethod || "Unknown.prototype.method";
-        alert(`🛠️ MZ-Nexus Sandbox Mode: Compiling real compatibility bridge patch asset file for ${targetPlugin}.js -> ${targetMethod}`);
 
         const patchContent = `/*:\n * @target MZ\n * @plugindesc [MZ-Nexus Compatibility Patch] Restores native functional loops overwritten by ${targetPlugin}.\n * @author MZ-Nexus Subsystem\n *\n * @help\n * Place this patch directly BELOW ${targetPlugin} in your plugin load manager list.\n */\n\n(function() {\n    const parts = "${targetMethod}".split('.');\n    const baseNamespace = parts[0];\n    const subMethod = parts.length > 2 ? parts[2] : parts[1];\n    const globalContextTarget = (parts.length > 2 && parts[1] === 'prototype') ? window[baseNamespace].prototype : window[baseNamespace];\n    if (globalContextTarget && typeof globalContextTarget[subMethod] === 'function') {\n        const _Nexus_Original_Method_Cache = globalContextTarget[subMethod];\n        globalContextTarget[subMethod] = function() {\n            return _Nexus_Original_Method_Cache.apply(this, arguments);\n        };\n        console.log("🟢 MZ-Nexus Patch Bound successfully to ${targetMethod}.");\n    }\n})();`;
 
-        const dataBlob = new Blob([patchContent], { type: 'text/javascript' });
-        const downloadLink = document.createElement('a');
-        downloadLink.href = URL.createObjectURL(dataBlob);
-        downloadLink.download = `Nexus_Patch_${targetPlugin}.js`;
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
+        const modalHtml = `
+            <div id="nexus-patch-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); display:flex; justify-content:center; align-items:center; z-index:9999; backdrop-filter: blur(4px);">
+                <div style="background:#1a1a1e; border:1px solid #3b82f6; border-radius:8px; padding:24px; max-width:700px; width:90%; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+                    <h3 style="color:#93c5fd; margin-bottom:8px; display:flex; align-items:center; gap:8px;">
+                        <span>✅</span> Patch Engine Compiled
+                    </h3>
+                    <p style="color:#a1a1aa; font-size:0.95rem; margin-bottom:16px; line-height:1.5;">
+                        To bypass Windows Smart App Control blocks, copy the compiled architecture below and save it as a new file named <code style="color:#34d399; background:#121214; padding:2px 6px; border-radius:4px; border:1px solid #2a2a30;">Nexus_Patch_${targetPlugin}.js</code> inside your project's plugin directory.
+                    </p>
+                    <textarea id="nexus-patch-code" style="width:100%; height:250px; background:#121214; color:#e4e4e7; border:1px solid #3f3f46; border-radius:6px; padding:16px; font-family:'Consolas', monospace; font-size:0.85rem; margin-bottom:20px; resize:vertical;" readonly>${patchContent}</textarea>
+                    <div style="display:flex; justify-content:flex-end; gap:12px;">
+                        <button onclick="document.getElementById('nexus-patch-modal').remove()" style="padding:10px 20px; background:#27272a; color:#e4e4e7; border:1px solid #3f3f46; border-radius:6px; cursor:pointer; font-weight:bold; transition:all 0.2s;">Close</button>
+                        <button onclick="navigator.clipboard.writeText(document.getElementById('nexus-patch-code').value); this.innerText='Copied!'; this.style.backgroundColor='#059669'; setTimeout(()=> { this.innerText='Copy Source Code'; this.style.backgroundColor='#3b82f6'; }, 2000);" style="padding:10px 20px; background:#3b82f6; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:bold; transition:all 0.2s;">Copy Source Code</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
     }
 
     // --- 6. AUTOMATED TOPOLOGICAL SORTING OPTIMIZER WITH ADJACENCY BINDING ---
@@ -368,7 +375,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         loadedPluginsCache = sortedStack;
 
-        // --- ROBUST STRICT ADJACENCY BINDING ---
         const patchesToSnap = [];
         loadedPluginsCache = loadedPluginsCache.filter(p => {
             if (p.name.includes('Nexus_Patch_')) {
