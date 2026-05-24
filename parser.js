@@ -30,7 +30,8 @@ document.addEventListener('DOMContentLoaded', () => {
             viewPanel.innerHTML = `
                 <div class="welcome-message">
                     <h3>System Diagnostics Ready</h3>
-                    <p>Drop your <code>plugins.js</code> here to analyze load order, or drop <code>.json</code> database files to audit syntax.</p>
+                    <p>Drag and drop your project files into the dashed <strong>sidebar drop zone</strong> on the left to begin.</p>
+                    <p style="font-size: 0.85rem; color: #71717a; margin-top: 10px;">Supported files: <code>plugins.js</code>, plugin script files (<code>.js</code>), and database files (<code>.json</code>).</p>
                 </div>`;
             return;
         }
@@ -287,11 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // --- CHECK 1: ADVANCED BRACKET PARSER ---
                     if (entry.note) {
-                        // 1. Strip out ANY complete multi-line block tag (e.g., <All AI Conditions>...</All AI Conditions>)
-                        // This dynamically captures the tag name and removes everything until it finds the matching closing tag.
                         let sanitizedNote = entry.note.replace(/<([^>]+)>[\s\S]*?<\/\1>/ig, '');
-                        
-                        // 2. Strip out math comparison operators that use brackets to avoid false positives in inline notes
                         sanitizedNote = sanitizedNote.replace(/<=|>=|=>|->|<-/g, '');
                         sanitizedNote = sanitizedNote.replace(/\s[<>]\s/g, '');
                         
@@ -315,10 +312,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         try {
                             const testFunc = new Function('a', 'b', 'v', 'sign', `return ${entry.damage.formula}`);
                             
-                            // Create a fake actor with standard MZ properties to test the math execution
                             const baseStats = { hp:100, mp:50, tp:10, mhp:100, mmp:50, atk:20, def:10, mat:20, mdf:10, agi:15, luk:15, level:5 };
                             
-                            // Inject Core MZ Game_Battler Methods into the Sandbox
                             baseStats.hpRate = function() { return 1; };
                             baseStats.mpRate = function() { return 1; };
                             baseStats.tpRate = function() { return 1; };
@@ -332,13 +327,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             baseStats.addState = function() {};
                             baseStats.removeState = function() {};
                             
-                            // Fake variables array that always returns 5 instead of crashing
                             const dummyV = new Proxy([], { get: function(target, prop) { return 5; } });
                             
-                            // Actively execute the formula string
                             const result = testFunc(baseStats, baseStats, dummyV, 1);
                             
-                            // If they typed 'a.atkk', it evaluates to undefined. undefined * 2 = NaN. Catch it here!
                             if (typeof result === 'number' && isNaN(result)) {
                                 throw new Error(`Execution evaluated to NaN (Not-a-Number).`);
                             }
@@ -395,7 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p class="impact-text">Impact Statement: ${details.impact}</p>
                     <div class="card-actions">
                         <button class="btn-fix" onclick="executeAutoOrderFix('${pluginName}')">Auto-Shift Index</button>
-                        <button class="btn-premium" onclick="triggerPremiumCheckout('${pluginName}', '${details.method}')">Generate Compatibility Patch ($4.99)</button>
+                        <button class="btn-premium" onclick="triggerPremiumCheckout('${pluginName}', '${details.method}')">Generate Compatibility Patch</button>
                     </div>
                 </div>`;
         }
@@ -412,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
             viewPanel.innerHTML = `
                 <div class="welcome-message" style="border: 1px dashed #3f3f46; background: transparent;">
                     <h3 style="color:#a1a1aa;">QA Engine Awaiting Data</h3>
-                    <p>Drop your <code>/data</code> folder JSON files here (e.g., Items.json, Skills.json) to execute a deep structural audit.</p>
+                    <p>Drag and drop your <code>/data</code> folder JSON files (e.g., Items.json, Skills.json) into the <strong>sidebar drop zone</strong> on the left to execute a deep structural audit.</p>
                 </div>`;
             return;
         }
@@ -455,7 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        alert(`🛠️ MZ-Nexus Sandbox Mode:\nCompiling secure, premium zip archive for ${targetPlugin}.js -> ${targetMethod}`);
+        alert(`🛠️ MZ-Nexus Sandbox Mode:\nCompiling secure compatibility patch archive for ${targetPlugin}.js -> ${targetMethod}`);
 
         const patchContent = `/*:\n * @target MZ\n * @plugindesc [MZ-Nexus Compatibility Patch] Restores native functional loops overwritten by ${targetPlugin}.\n * @author MZ-Nexus Subsystem\n *\n * @help\n * Place this patch directly BELOW ${targetPlugin} in your plugin load manager list.\n */\n\n(function() {\n    const parts = "${targetMethod}".split('.');\n    const baseNamespace = parts[0];\n    const subMethod = parts.length > 2 ? parts[2] : parts[1];\n    const globalContextTarget = (parts.length > 2 && parts[1] === 'prototype') ? window[baseNamespace].prototype : window[baseNamespace];\n    if (globalContextTarget && typeof globalContextTarget[subMethod] === 'function') {\n        const _Nexus_Original_Method_Cache = globalContextTarget[subMethod];\n        globalContextTarget[subMethod] = function() {\n            return _Nexus_Original_Method_Cache.apply(this, arguments);\n        };\n        console.log("🟢 MZ-Nexus Patch Bound successfully to ${targetMethod}.");\n    }\n})();`;
         
