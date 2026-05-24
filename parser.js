@@ -1,4 +1,4 @@
-// MZ-Nexus: Complete Advanced Core with Dual-Rule Topological Sorting, Patch Compiler & Robust Adjacency Binding
+// MZ-Nexus: Complete Advanced Core with Patch Immunity Sweep & Deduplication
 
 document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('file-drop-target');
@@ -98,7 +98,6 @@ document.addEventListener('DOMContentLoaded', () => {
         conflictMatrixCache = {};
         pluginDependenciesMap = {}; 
         architecturalViolations = [];
-        let activeConflictsCount = 0;
         const globalPrototypeRegistry = {};
         let activePluginsCount = 0;
 
@@ -181,7 +180,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (plugin.name.includes('Nexus_Patch_')) {
                 let targetBullyPlugin = plugin.name.split('Nexus_Patch_')[1];
                 if (targetBullyPlugin) {
-                    // Strips Windows duplicate numbering if you downloaded it twice
                     targetBullyPlugin = targetBullyPlugin.replace(/\s\(\d+\)$/, '');
                     
                     if (!pluginDependenciesMap[plugin.name].includes(targetBullyPlugin)) {
@@ -227,8 +225,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (modifiers.length > 1) {
                 const finalActiveHandler = modifiers[modifiers.length - 1];
                 if (finalActiveHandler.safetyType === 'CRITICAL_OVERWRITE') {
-                    activeConflictsCount++;
-                    const disabledPlugins = modifiers.slice(0, -1).map(m => m.pluginName);
+                    // Fix Duplicate Array Bug: Use Set to ensure unique plugin names
+                    const disabledPlugins = [...new Set(modifiers.slice(0, -1).map(m => m.pluginName))];
+                    
                     conflictMatrixCache[finalActiveHandler.pluginName] = {
                         method: method,
                         impact: `Completely overwrites native structure. Deactivates core modifications made by: [${disabledPlugins.join(', ')}].`
@@ -237,6 +236,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
+        // --- NEW: THE IMMUNITY SWEEP ---
+        // If a patch is active, suppress the alert for its target plugin!
+        const activePatches = loadedPluginsCache.filter(p => p.status && p.name.includes('Nexus_Patch_'));
+        activePatches.forEach(patch => {
+            let targetName = patch.name.split('Nexus_Patch_')[1];
+            if (targetName) {
+                targetName = targetName.replace(/\s\(\d+\)$/, '');
+                if (conflictMatrixCache[targetName]) {
+                    delete conflictMatrixCache[targetName]; // Clear the alert!
+                }
+            }
+        });
+
+        // Tally final conflicts after suppression
+        const activeConflictsCount = Object.keys(conflictMatrixCache).length;
         document.getElementById('conflict-count').innerText = activeConflictsCount + architecturalViolations.length;
         renderActiveView();
     }
@@ -244,7 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 5. INTERACTIVE RESOLUTION VIEW CONTROL ---
     function renderResolutionCenter() {
         if (loadedPluginsCache.length > 0 && Object.keys(conflictMatrixCache).length === 0 && architecturalViolations.length === 0) {
-            viewPanel.innerHTML = `<p class="success-text">🟢 Structural Evaluation Complete: Load paths are correctly aligned.</p>`;
+            viewPanel.innerHTML = `<p class="success-text">🟢 Structural Evaluation Complete: Load paths are correctly aligned and active patches have successfully bridged execution logic.</p>`;
             return;
         }
 
@@ -319,8 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // NEW CACHE VERIFICATION STRING
-        alert("⚙️ MZ-Nexus Engine [v2.0] Active:\nRunning Universal Topological Graph Alignment + Snap-to-Grid Pass...");
+        alert("⚙️ MZ-Nexus Engine Active:\nRunning Universal Topological Graph Alignment + Snap-to-Grid Pass...");
 
         const visited = {};
         const tempMark = {};
