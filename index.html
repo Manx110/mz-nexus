@@ -3,62 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MZ-Nexus // RPG Maker MZ Plugin Sandbox</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>MZ-Nexus // Engine: RPG Maker MZ</title>
+    
+    <link rel="stylesheet" href="style.css">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
 
-    <div class="app-container">
+    <div class="sidebar" style="display: flex; flex-direction: column; width: 320px; background: #121214; border-right: 1px solid #2a2a30; padding: 20px; box-sizing: border-box; height: 100vh; position: fixed; top: 0; left: 0; overflow-y: hidden;">
         
-        <header class="app-header">
-            <div class="brand">MZ-Nexus <span class="version">// Engine: RPG Maker MZ</span></div>
-            <div class="stats-bar">
-                <div class="stat-badge">Active Plugins: <span id="total-count">0</span></div>
-                <div class="stat-badge status-alert">Conflicts: <span id="conflict-count">0</span></div>
+        <div id="file-drop-target" style="border: 2px dashed #3f3f46; border-radius: 8px; padding: 30px 20px; text-align: center; color: #a1a1aa; font-size: 0.9rem; margin-bottom: 20px; transition: border-color 0.2s;">
+            Drag & Drop js/plugins.js and plugin files here
+        </div>
+        
+        <div style="font-size: 0.8rem; font-weight: bold; color: #71717a; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 1px;">
+            ACTIVE LOAD ORDER
+        </div>
+        
+        <ul id="sortable-plugin-stack" style="list-style: none; padding: 0; margin: 0; flex-grow: 1; overflow-y: auto;">
+            <li style="text-align: center; margin-top: 20px; color: #52525b; font-size: 0.85rem; border: 1px dashed #3f3f46; padding: 10px; border-radius: 6px;">
+                Sandbox Waiting for Upload...
+            </li>
+        </ul>
+    </div>
+
+    <div class="main-content" style="margin-left: 320px; display: flex; flex-direction: column; height: 100vh; background: #0e0e11; position: relative;">
+        
+        <div class="top-bar" style="height: 60px; border-bottom: 1px solid #2a2a30; display: flex; align-items: center; justify-content: space-between; padding: 0 30px;">
+            <div style="font-weight: bold; font-size: 1.1rem; color: #e4e4e7;">
+                MZ-Nexus <span style="color: #71717a; font-weight: normal; font-size: 0.9rem; margin-left: 10px;">// Engine: RPG Maker MZ</span>
             </div>
-        </header>
-
-        <main class="workspace">
-            
-            <aside class="sidebar">
-                <div class="drop-zone" id="file-drop-target">
-                    <p>Drag & Drop <code>js/plugins.js</code> and plugin files here</p>
+            <div style="display: flex; gap: 15px;">
+                <div style="background: #1a1a1e; border: 1px solid #2a2a30; padding: 5px 12px; border-radius: 6px; font-size: 0.85rem; color: #a1a1aa;">
+                    Active Plugins: <span id="total-count" style="color: #e4e4e7; font-weight: bold;">0</span>
                 </div>
-                
-                <h3 class="section-title">Active Load Order</h3>
-                <ul class="plugin-list" id="sortable-plugin-stack">
-                    <li class="plugin-item card-demo">
-                        <span class="drag-handle">☰</span>
-                        <span class="plugin-name">Sandbox Waiting for Upload...</span>
-                    </li>
-                </ul>
-            </aside>
-
-            <section class="main-stage">
-                <nav class="stage-tabs">
-                    <button class="tab-btn active" data-tab="resolution">Resolution Center</button>
-                    <button class="tab-btn" data-tab="conflict-map">Conflict Map</button>
-                    <button class="tab-btn" data-tab="database">Database Audit</button>
-                </nav>
-
-                <div class="canvas-viewport" id="active-view-panel">
-                    <div class="welcome-message">
-                        <h3>System Diagnostics Ready</h3>
-                        <p>Drop your project's <code>plugins.js</code> along with your custom <code>.js</code> plugin scripts into the drop zone to run an automated memory overwrite check.</p>
-                    </div>
+                <div style="background: #450a0a; border: 1px solid #7f1d1d; padding: 5px 12px; border-radius: 6px; font-size: 0.85rem; color: #f87171;">
+                    Conflicts: <span id="conflict-count" style="font-weight: bold;">0</span>
                 </div>
-            </section>
+            </div>
+        </div>
 
-        </main>
+        <div class="tabs" style="display: flex; gap: 20px; padding: 20px 30px 0; border-bottom: 1px solid #2a2a30;">
+            <button class="tab-btn active" data-tab="resolution" style="background: none; border: none; color: #a1a1aa; padding: 10px 0; cursor: pointer; font-size: 0.95rem; border-bottom: 2px solid transparent;">Resolution Center</button>
+            <button class="tab-btn" data-tab="conflict-map" style="background: none; border: none; color: #a1a1aa; padding: 10px 0; cursor: pointer; font-size: 0.95rem; border-bottom: 2px solid transparent;">Conflict Map</button>
+            <button class="tab-btn" data-tab="database" style="background: none; border: none; color: #a1a1aa; padding: 10px 0; cursor: pointer; font-size: 0.95rem; border-bottom: 2px solid transparent;">Database Audit</button>
+        </div>
 
-        <footer class="app-footer">
-            <button class="btn btn-secondary" id="btn-optimize">Auto-Optimize Order</button>
-            <button class="btn btn-primary" id="btn-export">Export Updated plugins.js</button>
-        </footer>
+        <div id="active-view-panel" style="padding: 30px; flex-grow: 1; overflow-y: auto;">
+            </div>
+
+        <div class="bottom-bar" style="padding: 20px 30px; border-top: 1px solid #2a2a30; display: flex; justify-content: flex-end; gap: 15px; background: #0e0e11; position: relative; z-index: 100;">
+            <button id="btn-optimize" style="padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.9rem; background: transparent; border: 1px solid #3f3f46; color: #e4e4e7;">Auto-Optimize Order</button>
+            <button id="btn-export" style="padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.9rem; background: #3b82f6; color: white; border: none;">Export Updated plugins.js</button>
+        </div>
+
+        <div style="position: absolute; bottom: 30px; left: 30px; font-size: 0.85rem; color: #a1a1aa; z-index: 50;">
+            Found a bug or false positive? <a href="https://github.com/Manx110/mz-nexus/issues" target="_blank" style="color: #3b82f6; text-decoration: none; font-weight: bold;">Report it on GitHub</a> 
+            <span style="margin: 0 12px; color: #3f3f46;">|</span> 
+            Support the engine: <a href="https://ko-fi.com/YOUR_LINK_HERE" target="_blank" style="color: #10b981; text-decoration: none; font-weight: bold;">☕ Buy me a coffee</a>
+        </div>
 
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="parser.js"></script>
 </body>
 </html>
