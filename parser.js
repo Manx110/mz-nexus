@@ -287,11 +287,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // --- CHECK 1: ADVANCED BRACKET PARSER ---
                     if (entry.note) {
-                        // 1. Strip out complex VisuStella/Yanfly script blocks first
-                        let sanitizedNote = entry.note.replace(/<JS[\s\S]*?<\/JS[^>]*>/ig, '');
-                        sanitizedNote = sanitizedNote.replace(/<Custom[\s\S]*?<\/Custom[^>]*>/ig, '');
+                        // 1. Strip out ANY complete multi-line block tag (e.g., <All AI Conditions>...</All AI Conditions>)
+                        // This dynamically captures the tag name and removes everything until it finds the matching closing tag.
+                        let sanitizedNote = entry.note.replace(/<([^>]+)>[\s\S]*?<\/\1>/ig, '');
                         
-                        // 2. Strip out math comparison operators that are isolated with spaces (e.g., " a > b ")
+                        // 2. Strip out math comparison operators that use brackets to avoid false positives in inline notes
+                        sanitizedNote = sanitizedNote.replace(/<=|>=|=>|->|<-/g, '');
                         sanitizedNote = sanitizedNote.replace(/\s[<>]\s/g, '');
                         
                         const openBrackets = (sanitizedNote.match(/</g) || []).length;
@@ -316,9 +317,20 @@ document.addEventListener('DOMContentLoaded', () => {
                             
                             // Create a fake actor with standard MZ properties to test the math execution
                             const baseStats = { hp:100, mp:50, tp:10, mhp:100, mmp:50, atk:20, def:10, mat:20, mdf:10, agi:15, luk:15, level:5 };
+                            
+                            // Inject Core MZ Game_Battler Methods into the Sandbox
+                            baseStats.hpRate = function() { return 1; };
+                            baseStats.mpRate = function() { return 1; };
+                            baseStats.tpRate = function() { return 1; };
                             baseStats.isStateAffected = function() { return false; };
+                            baseStats.isBuffAffected = function() { return false; };
+                            baseStats.isDebuffAffected = function() { return false; };
+                            baseStats.isDead = function() { return false; };
+                            baseStats.isAlive = function() { return true; };
                             baseStats.elementRate = function() { return 1; };
+                            baseStats.stateRate = function() { return 1; };
                             baseStats.addState = function() {};
+                            baseStats.removeState = function() {};
                             
                             // Fake variables array that always returns 5 instead of crashing
                             const dummyV = new Proxy([], { get: function(target, prop) { return 5; } });
