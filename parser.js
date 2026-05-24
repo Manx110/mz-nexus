@@ -1,4 +1,4 @@
-// MZ-Nexus: Complete Advanced Core with Dual-Rule Topological Sorting, Patch Compiler & Adjacency Binding
+// MZ-Nexus: Complete Advanced Core with Dual-Rule Topological Sorting, Patch Compiler & Robust Adjacency Binding
 
 document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('file-drop-target');
@@ -178,19 +178,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            if (plugin.name.startsWith('Nexus_Patch_')) {
-                const targetBullyPlugin = plugin.name.replace('Nexus_Patch_', '');
-                
-                if (!pluginDependenciesMap[plugin.name].includes(targetBullyPlugin)) {
-                    pluginDependenciesMap[plugin.name].push(targetBullyPlugin);
-                }
-                
-                Object.keys(pluginDependenciesMap).forEach(key => {
-                    if (key !== plugin.name && pluginDependenciesMap[key].includes(targetBullyPlugin)) {
-                        const idx = pluginDependenciesMap[key].indexOf(targetBullyPlugin);
-                        pluginDependenciesMap[key][idx] = plugin.name; 
+            if (plugin.name.includes('Nexus_Patch_')) {
+                let targetBullyPlugin = plugin.name.split('Nexus_Patch_')[1];
+                if (targetBullyPlugin) {
+                    // Strips Windows duplicate numbering if you downloaded it twice
+                    targetBullyPlugin = targetBullyPlugin.replace(/\s\(\d+\)$/, '');
+                    
+                    if (!pluginDependenciesMap[plugin.name].includes(targetBullyPlugin)) {
+                        pluginDependenciesMap[plugin.name].push(targetBullyPlugin);
                     }
-                });
+                    
+                    Object.keys(pluginDependenciesMap).forEach(key => {
+                        if (key !== plugin.name && pluginDependenciesMap[key].includes(targetBullyPlugin)) {
+                            const idx = pluginDependenciesMap[key].indexOf(targetBullyPlugin);
+                            pluginDependenciesMap[key][idx] = plugin.name; 
+                        }
+                    });
+                }
             }
 
             const li = document.createElement('li');
@@ -202,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!plugin.status) {
                 li.style.borderLeft = '4px solid #52525b';
                 badgeHTML = '<span class="badge" style="color:#71717a; font-size:0.8rem;">⚪ Off</span>';
-            } else if (scanResult.status === 'SAFE' || plugin.name.startsWith('Nexus_Patch_')) {
+            } else if (scanResult.status === 'SAFE' || plugin.name.includes('Nexus_Patch_')) {
                 li.style.borderLeft = '4px solid #34d399';
                 badgeHTML = `<span class="badge" style="color:#34d399; font-size:0.8rem;">🟢 Parsed${tierDisplayLevel}</span>`;
             } else {
@@ -315,7 +319,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        alert("⚙️ Running Universal Topological Graph Alignment...\nEvaluating standard @base hierarchies alongside custom vendor [Tier] and generated patch matrix rules...");
+        // NEW CACHE VERIFICATION STRING
+        alert("⚙️ MZ-Nexus Engine [v2.0] Active:\nRunning Universal Topological Graph Alignment + Snap-to-Grid Pass...");
 
         const visited = {};
         const tempMark = {};
@@ -350,25 +355,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
         loadedPluginsCache = sortedStack;
 
-        // --- NEW: STRICT ADJACENCY BINDING (The Snap-To-Grid Pass) ---
-        // Pull out all patches so they don't wander randomly within their tier boundaries
+        // --- ROBUST STRICT ADJACENCY BINDING ---
         const patchesToSnap = [];
         loadedPluginsCache = loadedPluginsCache.filter(p => {
-            if (p.name.startsWith('Nexus_Patch_')) {
+            if (p.name.includes('Nexus_Patch_')) {
                 patchesToSnap.push(p);
                 return false; 
             }
             return true;
         });
 
-        // Forcibly inject them exactly one slot below their target plugin
         patchesToSnap.forEach(patch => {
-            const targetName = patch.name.replace('Nexus_Patch_', '');
-            const targetIdx = loadedPluginsCache.findIndex(p => p.name === targetName);
-            if (targetIdx !== -1) {
-                loadedPluginsCache.splice(targetIdx + 1, 0, patch);
+            let targetName = patch.name.split('Nexus_Patch_')[1];
+            if (targetName) {
+                targetName = targetName.replace(/\s\(\d+\)$/, ''); 
+                
+                const targetIdx = loadedPluginsCache.findIndex(p => p.name === targetName);
+                if (targetIdx !== -1) {
+                    loadedPluginsCache.splice(targetIdx + 1, 0, patch);
+                } else {
+                    loadedPluginsCache.push(patch); 
+                }
             } else {
-                loadedPluginsCache.push(patch); // Fallback if the target is missing
+                loadedPluginsCache.push(patch);
             }
         });
 
