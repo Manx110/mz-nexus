@@ -1,0 +1,62 @@
+Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)
+
+Copyright (c) 2025 Manx110
+https://github.com/Manx110/mz-nexus
+
+=======================================================================
+HUMAN-READABLE SUMMARY (not a substitute for the full license below)
+=======================================================================
+
+You are FREE to:
+  Share  — copy and redistribute this tool in any medium or format
+  Adapt  — remix, transform, and build upon it
+
+Under the FOLLOWING CONDITIONS:
+  Attribution    — You must give appropriate credit to Manx110, provide
+                   a link to this repository, and indicate if you made
+                   changes. You may do so in any reasonable manner, but
+                   not in any way that suggests the author endorses you
+                   or your use.
+
+  NonCommercial  — You may NOT use this material for commercial purposes.
+                   This includes (but is not limited to):
+                     • Hosting it as a paid or ad-supported service
+                     • Bundling it into a product sold for money
+                     • Using it to generate revenue in any direct form
+
+  No extra locks — You may not apply legal terms or technological
+                   measures that legally restrict others from doing
+                   anything the license permits.
+
+COMMERCIAL USE or redistribution as a hosted service requires explicit
+written permission from the author. Contact via GitHub issues or the
+Ko-fi page at https://ko-fi.com/nexusenginetools.
+
+=======================================================================
+FULL LICENSE TEXT
+=======================================================================
+
+Creative Commons Corporation ("Creative Commons") is not a law firm and
+does not provide legal services or legal advice. Distribution of
+Creative Commons public licenses does not create a lawyer-client or
+other relationship. Creative Commons makes its licenses and related
+information available on an "as-is" basis. Creative Commons gives no
+warranties regarding its licenses, any material licensed under their
+terms and conditions, or any related information. Creative Commons
+disclaims all liability for damages resulting from their use to the
+fullest extent possible.
+
+The full legal text of CC BY-NC 4.0 is available at:
+https://creativecommons.org/licenses/by-nc/4.0/legalcode
+
+=======================================================================
+THIRD-PARTY COMPONENTS
+=======================================================================
+
+This project uses the following third-party libraries, which retain
+their own licenses:
+
+  JSZip v3.10.1
+  Copyright (c) 2009-2016 Stuart Knightley, David Duponchel,
+  Franz Buchinger, António Afonso
+  License: MIT — https://github.com/Stuk/jszip/blob/main/LICENSE.markdown
