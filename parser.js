@@ -1,5 +1,134 @@
 // MZ-Nexus: Advanced Core Engine [MZ Production Stable] - Anchor Guard Updates
 
+// =============================================================================
+// JS NOTETAG PATTERN REGISTRY
+// =============================================================================
+// Each entry defines how a plugin wraps JavaScript inside a database note box.
+// The audit engine iterates this list for every entry it scans — add a new
+// object here to support any additional plugin without touching the audit logic.
+//
+// Each pattern requires:
+//   plugin   {string}  Human-readable plugin/author name shown in the error card
+//   args     {Array}   Parameter names passed into the sandbox Function — should
+//                      match the variables the plugin injects at runtime so the
+//                      syntax check doesn't false-positive on them
+//   extract  {Function}  Receives the full note string, returns an array of
+//                        { tag, code } objects — tag is the display name shown in
+//                        the error card, code is the raw JS string to validate
+//
+// Matching rules:
+//   - Patterns are tested in order; ALL matching patterns run (a note can contain
+//     blocks from multiple plugins simultaneously)
+//   - Only SyntaxErrors are reported — ReferenceErrors are runtime-only and would
+//     produce false positives against plugin-defined globals
+// =============================================================================
+const JS_NOTETAG_PATTERNS = [
+
+    // -------------------------------------------------------------------------
+    // VISUSTELLA / YANFLY (MZ)
+    // Named block format:  <JS Tag Name> ... </JS Tag Name>
+    // Covers: VisuMZ_1_BattleCore, VisuMZ_1_SkillsStatesCore, all VisuMZ plugins
+    // Runtime args injected by VisuStella battle engine
+    // -------------------------------------------------------------------------
+    {
+        plugin: 'VisuStella MZ',
+        args: ['user', 'target', 'value', 'skill', 'item', 'a', 'b', 's', 'v'],
+        extract(note) {
+            const results = [];
+            const re = /<JS ([^>]+)>([\s\S]*?)<\/JS \1>/gi;
+            let m;
+            while ((m = re.exec(note)) !== null) {
+                results.push({ tag: `JS ${m[1].trim()}`, code: m[2] });
+            }
+            return results;
+        }
+    },
+
+    // -------------------------------------------------------------------------
+    // YANFLY (MV legacy, sometimes ported to MZ)
+    // Block format:  <Custom Pre-Damage> ... </Custom Pre-Damage>  etc.
+    // -------------------------------------------------------------------------
+    {
+        plugin: 'Yanfly MV (legacy)',
+        args: ['user', 'target', 'value', 'skill', 'item'],
+        extract(note) {
+            const results = [];
+            const re = /<Custom ([^>]+)>([\s\S]*?)<\/Custom \1>/gi;
+            let m;
+            while ((m = re.exec(note)) !== null) {
+                results.push({ tag: `Custom ${m[1].trim()}`, code: m[2] });
+            }
+            return results;
+        }
+    },
+
+    // -------------------------------------------------------------------------
+    // GENERIC <script> / <eval> / <code> BLOCKS
+    // Used by: Hime Works, SumRndmDde (SRD), misc community plugins
+    // -------------------------------------------------------------------------
+    {
+        plugin: 'Generic Script Block (<script> / <eval> / <code>)',
+        args: ['a', 'b', 'v', 's', 'item', 'skill'],
+        extract(note) {
+            const results = [];
+            const re = /<(script|eval|code)>([\s\S]*?)<\/\1>/gi;
+            let m;
+            while ((m = re.exec(note)) !== null) {
+                results.push({ tag: m[1], code: m[2] });
+            }
+            return results;
+        }
+    },
+
+    // -------------------------------------------------------------------------
+    // MOG HUNTER
+    // Block format:  <JS> ... </JS>  (bare, no tag name)
+    // -------------------------------------------------------------------------
+    {
+        plugin: 'MOG Hunter',
+        args: ['user', 'target', 'value'],
+        extract(note) {
+            const results = [];
+            // Must NOT match VisuStella's <JS TagName> variant — only bare <JS>
+            const re = /<JS>([\s\S]*?)<\/JS>/gi;
+            let m;
+            while ((m = re.exec(note)) !== null) {
+                results.push({ tag: 'JS', code: m[1] });
+            }
+            return results;
+        }
+    },
+
+    // -------------------------------------------------------------------------
+    // GALV
+    // Inline single-line format:  <js: expression>
+    // Example: <js: $gameVariables.setValue(1, a.atk)>
+    // -------------------------------------------------------------------------
+    {
+        plugin: 'Galv',
+        args: ['a', 'b', 'item'],
+        extract(note) {
+            const results = [];
+            const re = /<js:\s*([^>]+)>/gi;
+            let m;
+            while ((m = re.exec(note)) !== null) {
+                // Wrap in return so bare expressions are valid Function bodies
+                results.push({ tag: 'js: (inline)', code: `return (${m[1].trim()});` });
+            }
+            return results;
+        }
+    },
+
+    // -------------------------------------------------------------------------
+    // VISUSTELLA PARAM / FORMULA BLOCKS (special-case)
+    // Some VisuMZ plugins use a tighter <JS Formulas> ... </JS Formulas> wrapper
+    // for parameter overrides — covered by the main VisuStella pattern above,
+    // but listed here explicitly for documentation clarity.
+    // (No separate entry needed — handled by entry 0 above.)
+    // -------------------------------------------------------------------------
+
+];
+
 document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('file-drop-target');
     const tabButtons = document.querySelectorAll('.tab-btn');
@@ -330,8 +459,70 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!entry) return;
                     const name = entry.name || `Unnamed Object (ID: ${entry.id || index})`;
 
-                    // Check for unclosed notetag brackets
+                    // Check for unclosed notetag brackets and invalid JS notetag blocks
                     if (entry.note) {
+
+                        // --- JS NOTETAG BLOCK SYNTAX VALIDATOR ---
+                        // Iterate every registered pattern. Each pattern extracts its own
+                        // set of JS blocks from the note and we attempt to compile each one.
+                        // Adding support for a new plugin = one new entry in JS_NOTETAG_PATTERNS.
+                        const alreadyReported = new Set(); // dedupe identical code blocks
+                        JS_NOTETAG_PATTERNS.forEach(pattern => {
+                            let blocks;
+                            try {
+                                blocks = pattern.extract(entry.note);
+                            } catch (_) {
+                                return; // malformed extractor — skip gracefully
+                            }
+
+                            blocks.forEach(({ tag, code }) => {
+                                // Skip if we already flagged this exact code block via
+                                // a different pattern (e.g. a block matched by two patterns)
+                                if (alreadyReported.has(code)) return;
+
+                                try {
+                                    // Compile only — we never execute this.
+                                    // Pass the pattern's declared args so the parser doesn't
+                                    // choke on bare references like 'user', 'value', etc.
+                                    new Function(...pattern.args, code);
+                                } catch (err) {
+                                    if (!(err instanceof SyntaxError)) return;
+
+                                    alreadyReported.add(code);
+
+                                    const lineMatch = err.message.match(/line (\d+)/i) ||
+                                                      (err.stack && err.stack.match(/:(\d+):/));
+                                    const lineHint  = lineMatch
+                                        ? ` (near line ${lineMatch[1]} of the block)`
+                                        : '';
+
+                                    const escaped = code
+                                        .trim()
+                                        .replace(/&/g, '&amp;')
+                                        .replace(/</g, '&lt;')
+                                        .replace(/>/g, '&gt;');
+
+                                    databaseAlerts.push({
+                                        file: fileName,
+                                        item: name,
+                                        id: entry.id || index,
+                                        type: 'Syntax Error',
+                                        issue: `Invalid JavaScript in &lt;${tag}&gt; notetag`,
+                                        originalFormula: null,
+                                        suggestedFormula: null,
+                                        suggestions: [],
+                                        details: `<strong>Plugin:</strong> ${pattern.plugin}<br>
+                                                  Parse failure${lineHint}: <em>${err.message}</em><br>
+                                                  This will cause a crash when the engine executes this notetag in-game.<br>
+                                                  <code style="display:block; margin-top:8px; white-space:pre; overflow-x:auto;">${escaped}</code>`
+                                    });
+                                }
+                            });
+                        });
+
+                        // --- UNCLOSED BRACKET CHECK ---
+                        // Strip known paired tags first so their angle brackets don't skew
+                        // the count, then check for any remaining unmatched < or >.
                         let sanitizedNote = entry.note.replace(/<([^>]+)>[\s\S]*?<\/\1>/ig, '');
                         sanitizedNote = sanitizedNote.replace(/<=|>=|=>|->|<-/g, '');
                         sanitizedNote = sanitizedNote.replace(/\s[<>]\s/g, '');
@@ -346,6 +537,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 id: entry.id || index,
                                 type: 'Syntax Error',
                                 issue: 'Unclosed Notetag Brackets',
+                                originalFormula: null,
+                                suggestedFormula: null,
+                                suggestions: [],
                                 details: `The note box has ${openBrackets} opening '&lt;' brackets and ${closeBrackets} closing '&gt;' brackets. This asymmetry will cause complex plugin parameters to fail.`
                             });
                         }
