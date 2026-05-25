@@ -353,59 +353,96 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Validate and sandbox-execute damage formulas
                     if (entry.damage && entry.damage.formula && entry.damage.formula.trim() !== '') {
+                        const originalFormula = entry.damage.formula;
+
+                        // --- STYLE SUGGESTION PASS ---
+                        // Run before execution so valid-but-improvable formulas get a
+                        // suggestion rather than a false error.
+                        let suggestedFormula = originalFormula;
+                        const suggestions = [];
+
+                        // $gameVariables.value(x) is valid MZ syntax but 'v' is already
+                        // passed into every damage formula as the shorthand accessor (v[x]).
+                        const gameVarRegex = /\$gameVariables\.value\((\d+)\)/g;
+                        if (gameVarRegex.test(originalFormula)) {
+                            suggestedFormula = suggestedFormula.replace(
+                                /\$gameVariables\.value\((\d+)\)/g,
+                                (_, id) => `v[${id}]`
+                            );
+                            suggestions.push('Replace <code>$gameVariables.value(x)</code> with <code>v[x]</code> — the shorthand is already available in every damage formula context and is the standard convention.');
+                        }
+
+                        // Math.floor(expr)/divisor floors only the numerator before dividing.
+                        // Suggest wrapping the full expression to make intent unambiguous.
+                        const floorDivideRegex = /Math\.floor\(([^)]+)\)\s*\/\s*(\d+)/g;
+                        let floorMatch;
+                        while ((floorMatch = floorDivideRegex.exec(suggestedFormula)) !== null) {
+                            const inner   = floorMatch[1];
+                            const divisor = floorMatch[2];
+                            const replacement = `Math.floor((${inner}) / ${divisor})`;
+                            suggestedFormula = suggestedFormula.replace(floorMatch[0], replacement);
+                            suggestions.push(`<code>Math.floor(${inner})/${divisor}</code> floors only the numerator. If you intend to floor the final result, use <code>Math.floor((${inner}) / ${divisor})</code>.`);
+                        }
+
+                        if (suggestions.length > 0) {
+                            databaseAlerts.push({
+                                file: fileName,
+                                item: name,
+                                id: entry.id || index,
+                                type: 'Style Suggestion',
+                                issue: 'Formula Can Be Simplified',
+                                originalFormula,
+                                suggestedFormula: suggestedFormula.trim(),
+                                suggestions,
+                                details: null
+                            });
+                        }
+
+                        // --- EXECUTION VALIDATION PASS ---
+                        // Pass $gameVariables as a sandbox param so longhand formulas don't
+                        // throw a false 'not defined' error.
                         try {
-                            const testFunc = new Function('a', 'b', 'v', 'sign', `
+                            const testFunc = new Function('a', 'b', 'v', 'sign', '$gameVariables', `
                                 let dmg = 0;
-                                return ${entry.damage.formula};
+                                return ${originalFormula};
                             `);
 
-                            // FIX: Expanded mock object to include methods commonly used in RPG Maker MZ
-                            // damage formulas (param, xparam, sparam, isEnemy, isActor, etc.) that were
-                            // previously missing, causing false-positive "Broken Formula" audit errors.
                             const baseStats = {
                                 hp: 100, mp: 50, tp: 10,
                                 mhp: 100, mmp: 50,
                                 atk: 20, def: 10, mat: 20, mdf: 10, agi: 15, luk: 15,
                                 level: 5,
-                                // Core stat methods
                                 param:   function() { return 20; },
                                 xparam:  function() { return 0.1; },
                                 sparam:  function() { return 1.0; },
-                                // Rate helpers
                                 hpRate:  function() { return 1; },
                                 mpRate:  function() { return 1; },
                                 tpRate:  function() { return 1; },
-                                // State/buff checks
                                 isStateAffected:  function() { return false; },
                                 isBuffAffected:   function() { return false; },
                                 isDebuffAffected: function() { return false; },
-                                isDead:           function() { return false; },
-                                isAlive:          function() { return true; },
-                                isEnemy:          function() { return false; },
-                                isActor:          function() { return true; },
-                                // Element/state rate
+                                isDead:   function() { return false; },
+                                isAlive:  function() { return true; },
+                                isEnemy:  function() { return false; },
+                                isActor:  function() { return true; },
                                 elementRate: function() { return 1; },
                                 stateRate:   function() { return 1; },
-                                // State mutation (formula side-effects)
                                 addState:    function() {},
                                 removeState: function() {},
-                                // Skills / items references
-                                skills:  function() { return []; },
+                                skills:   function() { return []; },
                                 hasSkill: function() { return false; },
                             };
 
-                            // Proxy for game variables (v[x]) - returns 5 for any unset variable
+                            // v[x] shorthand proxy — returns 5 for any unset variable index
                             const dummyV = new Proxy({}, {
-                                get: function(target, prop) {
-                                    return target[prop] !== undefined ? target[prop] : 5;
-                                },
-                                set: function(target, prop, value) {
-                                    target[prop] = value;
-                                    return true;
-                                }
+                                get: (t, p) => t[p] !== undefined ? t[p] : 5,
+                                set: (t, p, val) => { t[p] = val; return true; }
                             });
 
-                            const result = testFunc(baseStats, baseStats, dummyV, 1);
+                            // Mock $gameVariables so longhand formulas don't throw 'not defined'
+                            const dummyGameVariables = { value: () => 5 };
+
+                            const result = testFunc(baseStats, baseStats, dummyV, 1, dummyGameVariables);
 
                             if (typeof result === 'number' && isNaN(result)) {
                                 throw new Error('Execution evaluated to NaN (Not-a-Number).');
@@ -417,7 +454,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 id: entry.id || index,
                                 type: 'Logic Error',
                                 issue: 'Broken Damage Formula',
-                                details: `Engine test failure: "${err.message}". This usually means a misspelled stat reference (e.g. <code>a.atkk</code> instead of <code>a.atk</code>) or incomplete math operators.<br><code>Formula: ${entry.damage.formula}</code>`
+                                originalFormula,
+                                suggestedFormula: null,
+                                suggestions: [],
+                                details: `Engine test failure: "${err.message}". This usually means a misspelled stat reference (e.g. <code>a.atkk</code> instead of <code>a.atk</code>) or incomplete math operators.`
                             });
                         }
                     }
@@ -553,15 +593,73 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        let html = '<div class="resolution-center"><h3 style="color:#ef4444; margin-bottom: 15px;">Database QA Anomalies Detected</h3>';
-        databaseAlerts.forEach(alert => {
-            html += `
-                <div class="db-alert-card">
-                    <h4>🚨 ${alert.type}: ${alert.issue}</h4>
-                    <p style="color:#e4e4e7; margin-bottom:4px;"><strong>Target:</strong> ${alert.item} (ID: ${alert.id}) | <strong>Source:</strong> ${alert.file}</p>
-                    <div class="impact-text" style="border-left-color: #ef4444;">${alert.details}</div>
-                </div>`;
-        });
+        const errors      = databaseAlerts.filter(a => a.type !== 'Style Suggestion');
+        const suggestions = databaseAlerts.filter(a => a.type === 'Style Suggestion');
+
+        let html = '<div class="resolution-center">';
+
+        // --- Hard errors first ---
+        if (errors.length > 0) {
+            html += `<h3 style="color:#ef4444; margin-bottom:15px;">Database QA Anomalies Detected</h3>`;
+            errors.forEach(alert => {
+                html += `
+                    <div class="db-alert-card" style="border-left-color:#ef4444;">
+                        <h4>🚨 ${alert.type}: ${alert.issue}</h4>
+                        <p style="color:#e4e4e7; margin-bottom:4px;">
+                            <strong>Target:</strong> ${alert.item} (ID: ${alert.id}) |
+                            <strong>Source:</strong> ${alert.file}
+                        </p>
+                        <div class="impact-text" style="border-left-color:#ef4444;">
+                            ${alert.details}
+                            ${alert.originalFormula ? `<br><code>Formula: ${alert.originalFormula}</code>` : ''}
+                        </div>
+                    </div>`;
+            });
+        }
+
+        // --- Style suggestions ---
+        if (suggestions.length > 0) {
+            html += `<h3 style="color:#3b82f6; margin-bottom:15px; margin-top:${errors.length > 0 ? '28px' : '0'};">
+                        💡 Formula Style Suggestions
+                     </h3>
+                     <p style="color:#71717a; font-size:0.85rem; margin-bottom:16px; margin-top:-10px;">
+                        These formulas are valid and will work correctly — the suggestions below are optional improvements for readability and convention.
+                     </p>`;
+
+            suggestions.forEach(alert => {
+                // Build the bullet list of individual suggestions
+                const suggestionItems = alert.suggestions
+                    .map(s => `<li style="margin-bottom:6px;">${s}</li>`)
+                    .join('');
+
+                html += `
+                    <div class="db-alert-card" style="border-left-color:#3b82f6; background:#0f1e35;">
+                        <h4 style="color:#60a5fa;">💡 ${alert.issue}</h4>
+                        <p style="color:#e4e4e7; margin-bottom:10px;">
+                            <strong>Target:</strong> ${alert.item} (ID: ${alert.id}) |
+                            <strong>Source:</strong> ${alert.file}
+                        </p>
+
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+                            <div>
+                                <p style="color:#71717a; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Current Formula</p>
+                                <code style="display:block; background:#121214; padding:8px 10px; border-radius:4px; color:#a1a1aa; word-break:break-all;">${alert.originalFormula}</code>
+                            </div>
+                            <div>
+                                <p style="color:#34d399; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Suggested Formula</p>
+                                <code style="display:block; background:#121214; padding:8px 10px; border-radius:4px; color:#34d399; word-break:break-all;">${alert.suggestedFormula}</code>
+                            </div>
+                        </div>
+
+                        <div class="impact-text" style="border-left-color:#3b82f6;">
+                            <ul style="margin:0; padding-left:18px; line-height:1.7;">
+                                ${suggestionItems}
+                            </ul>
+                        </div>
+                    </div>`;
+            });
+        }
+
         html += '</div>';
         viewPanel.innerHTML = html;
     }
