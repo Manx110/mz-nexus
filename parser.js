@@ -1,4 +1,4 @@
-// MZ-Nexus: Advanced Core Engine [v3.0] - MV Compatibility Updated & Auto-Shift Purged
+// MZ-Nexus: Advanced Core Engine [v3.5] - MV Order Matrix & Read/Write Proxy Sandbox Updated
 
 document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('file-drop-target');
@@ -48,11 +48,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 2. DRAG & DROP FILE HIGHLIGHT HANDLERS ---
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
-        dropZone.classList.add('drop-zone-active'); // Turn blue
+        dropZone.classList.add('drop-zone-active');
     });
 
     dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('drop-zone-active'); // Revert
+        dropZone.classList.remove('drop-zone-active');
     });
 
     dropZone.addEventListener('drop', async (e) => {
@@ -127,10 +127,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const globalPrototypeRegistry = {};
         let activePluginsCount = 0;
 
+        // Hardcoded Legacy MV Fallback Maps (When extensions omit internal script tags)
+        const mvImplicitHierarchy = {
+            'YEP_ClassChangeCore': ['YEP_CoreEngine'],
+            'YEP_X_Subclass': ['YEP_ClassChangeCore', 'YEP_CoreEngine'],
+            'YEP_MessageCore': ['YEP_CoreEngine'],
+            'YEP_X_ExtMesPack1': ['YEP_MessageCore'],
+            'YEP_X_MessageMacros1': ['YEP_MessageCore']
+        };
+
         loadedPluginsCache.forEach(plugin => {
             pluginDependenciesMap[plugin.name] = [];
-            const currentTier = extractUniversalTierLevel(plugin);
             
+            // Apply hardcoded MV implicit rules if matching a foundational extension suite
+            if (mvImplicitHierarchy[plugin.name]) {
+                mvImplicitHierarchy[plugin.name].forEach(dep => {
+                    if (!pluginDependenciesMap[plugin.name].includes(dep)) {
+                        pluginDependenciesMap[plugin.name].push(dep);
+                    }
+                });
+            }
+
+            const currentTier = extractUniversalTierLevel(plugin);
             if (currentTier !== null && plugin.status) {
                 loadedPluginsCache.forEach(otherPlugin => {
                     if (otherPlugin.name !== plugin.name && otherPlugin.status) {
@@ -311,7 +329,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (entry.damage && entry.damage.formula && entry.damage.formula.trim() !== '') {
                         try {
-                            const testFunc = new Function('a', 'b', 'v', 'sign', `return ${entry.damage.formula}`);
+                            const testFunc = new Function('a', 'b', 'v', 'sign', `
+                                let dmg = 0; 
+                                return ${entry.damage.formula};
+                            `);
+                            
                             const baseStats = { hp:100, mp:50, tp:10, mhp:100, mmp:50, atk:20, def:10, mat:20, mdf:10, agi:15, luk:15, level:5 };
                             
                             baseStats.hpRate = function() { return 1; };
@@ -327,7 +349,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             baseStats.addState = function() {};
                             baseStats.removeState = function() {};
                             
-                            const dummyV = new Proxy([], { get: function(target, prop) { return 5; } });
+                            // Advanced Read/Write Proxy: Safely intercepts assignments (v[121] = x) without throwing execution faults
+                            const variableStorageMock = {};
+                            const dummyV = new Proxy(variableStorageMock, {
+                                get: function(target, prop) {
+                                    return target[prop] !== undefined ? target[prop] : 5;
+                                },
+                                set: function(target, prop, value) {
+                                    target[prop] = value;
+                                    return true;
+                                }
+                            });
+                            
                             const result = testFunc(baseStats, baseStats, dummyV, 1);
                             
                             if (typeof result === 'number' && isNaN(result)) {
@@ -358,7 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- 6. VIEWPORT RENDERER (AUTO-SHIFT ENTIRELY PURGED) ---
+    // --- 6. VIEWPORT RENDERER ---
     function renderResolutionCenter() {
         if (loadedPluginsCache.length > 0 && Object.keys(conflictMatrixCache).length === 0 && architecturalViolations.length === 0) {
             viewPanel.innerHTML = `<p class="success-text" style="color: #34d399; font-weight: bold;">🟢 Structural Evaluation Complete: Load paths are correctly aligned and active patches have successfully bridged execution logic.</p>`;
@@ -510,7 +543,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        alert(`🚀 Universal Layout Matrix Alignment Complete!\nAll structural component tiers sorted and patches snapped securely to targets.`);
+        alert("🚀 Universal Layout Matrix Alignment Complete!\nAll structural component tiers sorted and patches snapped securely to targets.");
         await runDeepProjectScan();
     });
 
