@@ -49,16 +49,46 @@ const JS_NOTETAG_PATTERNS = [
     // VisuStella MZ also uses <Custom ...> (e.g. Custom Cost Text in SkillsStatesCore).
     // VisuStella pattern above catches those first; dedup prevents double-reporting.
     // Block format:  <Custom Pre-Damage> ... </Custom Pre-Damage>  etc.
+    //
+    // IMPORTANT: Not all <Custom ...> blocks contain JavaScript. VisuStella and
+    // Yanfly both use <Custom Cost Text>, <Custom Cost Display>, <Custom Name> etc.
+    // as *display text* notetags that accept RPG Maker text codes like \i[160],
+    // \c[2], \v[n] — never JavaScript. Two-layer guard below prevents those from
+    // being falsely flagged as syntax errors:
+    //   1. Tag name exclusion  — skip tags ending with known display-only suffixes
+    //   2. Content heuristic   — skip blocks whose content looks like RPG Maker text
+    //                            codes and contains no JavaScript indicators
     // -------------------------------------------------------------------------
     {
         plugin: 'Yanfly MV (legacy) / VisuStella MZ Custom tags',
         args: ['user', 'target', 'value', 'skill', 'item'],
         extract(note) {
+            // Tag name suffixes that always indicate display text, never JavaScript
+            const TEXT_ONLY_SUFFIXES = /\b(text|display|name|description|icon|label|title|message|string|format|caption|header|footer|prefix|suffix|popup|notify|alert|tooltip)$/i;
+
+            // Returns true if the content looks like RPG Maker display text rather
+            // than JavaScript. Positive signal: contains \i[, \c[, \n[, \v[ etc.
+            // Negative signal: no JS indicators (semicolons, braces, function calls).
+            function looksLikeRPGText(code) {
+                const hasTextCodes = /\\[icnvpCIGNVP]\[/.test(code);
+                const hasJSIndicators = /[;{}]|\bfunction\b|\bvar\b|\blet\b|\bconst\b|\bif\s*\(|\bfor\s*\(|\breturn\b/.test(code);
+                return hasTextCodes && !hasJSIndicators;
+            }
+
             const results = [];
             const re = /<Custom ([^>]+)>([\s\S]*?)<\/Custom \1>/gi;
             let m;
             while ((m = re.exec(note)) !== null) {
-                results.push({ tag: `Custom ${m[1].trim()}`, code: m[2] });
+                const tagName = m[1].trim();
+                const code    = m[2];
+
+                // Layer 1: skip known display-text tag name suffixes
+                if (TEXT_ONLY_SUFFIXES.test(tagName)) continue;
+
+                // Layer 2: skip blocks that look like RPG Maker text codes
+                if (looksLikeRPGText(code)) continue;
+
+                results.push({ tag: `Custom ${tagName}`, code });
             }
             return results;
         }
