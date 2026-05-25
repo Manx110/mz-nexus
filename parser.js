@@ -79,16 +79,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 hasPluginFiles = true;
                 const text = await file.text();
                 try {
-                    // FIX: Use a targeted regex to find the $plugins array rather than a naive
-                    // indexOf('[') which would break if any comment above the array contains '['.
-                    const arrayMatch = text.match(/var\s+\$plugins\s*=\s*(\[[\s\S]*?\])\s*;/);
-                    if (arrayMatch) {
-                        loadedPluginsCache = JSON.parse(arrayMatch[1]);
+                    // Find the start of the array by locating the '[' that follows '$plugins ='
+                    // rather than using indexOf('[') which would break if comments above contain '['.
+                    // We then use lastIndexOf(']') for the end — this is safe because the regex
+                    // anchors us past any '[' in comments, and the last ']' in the file is always
+                    // the closing bracket of the $plugins array.
+                    //
+                    // NOTE: Do NOT use a lazy quantifier ([\s\S]*?) here. Plugin descriptions
+                    // commonly contain text like "[Tier 1]", so a lazy match stops at the very
+                    // first ']' it finds — producing truncated JSON that silently fails to parse.
+                    const headerMatch = text.match(/var\s+\$plugins\s*=\s*/);
+                    if (headerMatch) {
+                        const startIdx = text.indexOf('[', headerMatch.index + headerMatch[0].length);
+                        const endIdx   = text.lastIndexOf(']');
+                        if (startIdx !== -1 && endIdx > startIdx) {
+                            loadedPluginsCache = JSON.parse(text.substring(startIdx, endIdx + 1));
+                        }
                     } else {
-                        // Graceful fallback: try to grab the outermost [ ... ] block
+                        // Fallback for non-standard formats: still safer than plain indexOf('[')
+                        // because we only reach here if the header pattern wasn't found at all.
                         const startIdx = text.indexOf('[');
-                        const endIdx = text.lastIndexOf(']');
-                        if (startIdx !== -1 && endIdx !== -1) {
+                        const endIdx   = text.lastIndexOf(']');
+                        if (startIdx !== -1 && endIdx > startIdx) {
                             loadedPluginsCache = JSON.parse(text.substring(startIdx, endIdx + 1));
                         }
                     }
