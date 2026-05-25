@@ -1,4 +1,34 @@
-// MZ-Nexus: Advanced Core Engine [MZ Production Stable] - Anchor Guard Updates
+/**
+ * MZ-Nexus Optimizer Suite — parser.js
+ * Copyright (c) 2026 Manx110
+ *
+ * Repository : https://github.com/Manx110/mz-nexus
+ * Live tool  : https://manx110.github.io/mz-nexus/
+ * Support    : https://ko-fi.com/nexusenginetools
+ *
+ * Licensed under Creative Commons Attribution-NonCommercial 4.0 International
+ * https://creativecommons.org/licenses/by-nc/4.0/
+ *
+ * You are free to:
+ *   Share  — copy and redistribute the material in any medium or format
+ *   Adapt  — remix, transform, and build upon the material
+ *
+ * Under the following terms:
+ *   Attribution      — You must give appropriate credit, provide a link to
+ *                      the license, and indicate if changes were made.
+ *   NonCommercial    — You may not use the material for commercial purposes
+ *                      or host it as a monetised / ad-supported service.
+ *   No extra locks   — You may not apply legal terms or technological measures
+ *                      that legally restrict others from doing anything the
+ *                      license permits.
+ *
+ * Commercial use or redistribution as a hosted service requires written
+ * permission from the author.
+ */
+
+const NEXUS_VERSION = '1.0.0';
+const NEXUS_AUTHOR  = 'Manx110';
+const NEXUS_REPO    = 'https://github.com/Manx110/mz-nexus';
 
 // =============================================================================
 // JS NOTETAG PATTERN REGISTRY
@@ -544,8 +574,76 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeBtn) activeBtn.classList.add('active');
     }
 
-    // --- 3. HARD ANCHOR EXTRACTOR PASS ---
+    // --- 3. ECOSYSTEM DETECTION & TIER EXTRACTOR ---
+
+    // Identifies which plugin family a plugin belongs to.
+    // Tiers are only meaningful WITHIN the same ecosystem — a MK Tier 1 plugin
+    // has no ordering relationship with a VisuStella Tier 1 plugin unless an
+    // explicit @base / @orderAfter dependency is declared between them.
+    // Dynamic namespace registry — populated by namespace detection during source scans.
+    // Maps plugin name → detected namespace string (e.g. 'CGMZ', 'TOD', 'VisuMZ').
+    // Allows getPluginEcosystem to return accurate families for plugins whose source
+    // files have been dropped, even if their prefix isn't in the hardcoded list below.
+    const detectedNamespaceRegistry = {};
+
+    function getPluginEcosystem(pluginName) {
+        // 1. Check source-scan detected namespace first — most accurate
+        if (detectedNamespaceRegistry[pluginName]) {
+            const ns = detectedNamespaceRegistry[pluginName];
+            if (ns === 'VisuMZ') return 'VisuStella';
+            if (ns === 'MK')     return 'MK_RNGMaps';
+            return ns; // Use the raw namespace as the ecosystem name
+        }
+
+        // 2. Fall back to name-prefix heuristics
+        // Public_* are VisuStella-distributed runtime libraries (e.g. Dragonbones
+        // engine). They are VisuStella prerequisites, not third-party plugins.
+        if (pluginName.startsWith('VisuMZ_') ||
+            pluginName.startsWith('Public_') ||
+            pluginName.startsWith('Yanfly')) return 'VisuStella';
+        if (pluginName.startsWith('MK_'))   return 'MK_RNGMaps';
+        if (pluginName.startsWith('YEP_'))  return 'Yanfly_MV';
+        if (pluginName.startsWith('CGMZ_')) return 'CGMZ';
+        if (pluginName.startsWith('HIME_')) return 'Hime';
+        if (pluginName.startsWith('SRD_'))  return 'SRD';
+        // Add more known prefixes here as needed
+        return 'standalone';
+    }
+
+    // ==========================================================================
+    // ECOSYSTEM ANCHOR RULES
+    // ==========================================================================
+    // Maps each third-party ecosystem to the single root/anchor plugin that all
+    // other plugins in that ecosystem depend on (directly or transitively).
+    //
+    // If VisuMZ_0_CoreEngine is present in the load list, these anchor plugins
+    // are forced to depend on it — which transitively pulls their ENTIRE chain
+    // after CoreEngine without having to annotate every individual plugin.
+    //
+    // Why anchor-only and not every plugin in the ecosystem?
+    //   Because once the anchor is constrained, every plugin that @base or
+    //   @orderAfter the anchor inherits the constraint automatically through the
+    //   topological sort. Annotating every plugin would be redundant and could
+    //   cause circular dependency false-positives.
+    //
+    // To add a new ecosystem: find its root plugin name and add one line here.
+    // ==========================================================================
+    const ECOSYSTEM_VISUCORE_ANCHORS = {
+        'MK_RNGMaps': 'MK_Core',
+        'CGMZ':       'CGMZ_Core',
+        'Yanfly_MV':  'YEP_CoreEngine',
+        // Add others as needed, e.g.:
+        // 'SRD': 'SRD_Core',
+    };
+
     function extractUniversalTierLevel(plugin) {
+        // Public_* runtime libraries (e.g. Public_0_DragonBones) are VisuStella-
+        // distributed JS engines that must load before everything else, including
+        // VisuMZ_0_CoreEngine. Tier -2 places them below -1 (CoreEngine) so the
+        // implicit tier rule automatically makes CoreEngine depend on them —
+        // no explicit dependency or circular-dependency workaround needed.
+        if (plugin.name.startsWith('Public_')) return -2;
+
         // Strict Foundational Anchor Protection: VisuMZ_0_CoreEngine must lock below all
         if (plugin.name === 'VisuMZ_0_CoreEngine') return -1;
 
@@ -570,21 +668,105 @@ document.addEventListener('DOMContentLoaded', () => {
         const globalPrototypeRegistry = {};
         let activePluginsCount = 0;
 
+        // Build a quick lookup of which plugins are actually in the list
+        const pluginNameSet = new Set(loadedPluginsCache.map(p => p.name));
+
         loadedPluginsCache.forEach(plugin => {
             pluginDependenciesMap[plugin.name] = [];
-            const currentTier = extractUniversalTierLevel(plugin);
+            const currentTier   = extractUniversalTierLevel(plugin);
+            const thisEcosystem = getPluginEcosystem(plugin.name);
 
             // Force all VisuMZ plugins to declare VisuMZ_0_CoreEngine as their base anchor
             if (plugin.name.startsWith('VisuMZ_') && plugin.name !== 'VisuMZ_0_CoreEngine') {
                 pluginDependenciesMap[plugin.name].push('VisuMZ_0_CoreEngine');
             }
 
+            // Note: Public_* runtime libraries (e.g. Public_0_DragonBones) are
+            // handled by extractUniversalTierLevel returning tier -2, which makes
+            // the implicit tier rule automatically place them before CoreEngine [T-1].
+            // No explicit dependency needed here.
+
+            // Standalone plugins that declare [Tier X] in their description are
+            // following VisuStella's tier convention and expect the entire VisuStella
+            // stack to be in place before they run.
+            //
+            // FIX: Previously we only added VisuMZ_0_CoreEngine as a dependency,
+            // which placed standalone-tier plugins at the same sort depth as
+            // VisuMZ_1_* plugins (both are 1 hop from CoreEngine). The sort then
+            // interleaved them between VisuStella tiers.
+            //
+            // Correct fix: depend on ALL active VisuStella plugins — same rule as
+            // the MK ecosystem anchor. This places them cleanly AFTER the entire
+            // VisuStella block. The ecosystem anchor rule further ensures the MK
+            // chain sorts after these, giving the final order:
+            //   [all VisuStella] → [standalone tier plugins] → [MK chain]
+            if (thisEcosystem === 'standalone' && currentTier !== null) {
+                loadedPluginsCache.forEach(visuPlugin => {
+                    if (
+                        visuPlugin.status &&
+                        getPluginEcosystem(visuPlugin.name) === 'VisuStella' &&
+                        !pluginDependenciesMap[plugin.name].includes(visuPlugin.name)
+                    ) {
+                        pluginDependenciesMap[plugin.name].push(visuPlugin.name);
+                    }
+                });
+            }
+
+            // Ecosystem anchor rule — if this plugin is the declared root of its
+            // ecosystem, add EVERY active VisuStella plugin as a dependency.
+            //
+            // Why every plugin and not just VisuMZ_0_CoreEngine?
+            //
+            // MK_Core touches Game_Event.prototype and Scene_Map.prototype.
+            // VisuStella plugins at Tier 1, 2, 3, and 4 also modify those same
+            // methods. MK must alias the FULLY BUILT VisuStella chain — not just
+            // CoreEngine's version. If MK_Core only depended on CoreEngine, the
+            // topological sort could legally place it before VisuMZ_1_EventsMoveCore
+            // (which also rewrites Game_Event), causing MK's alias to overwrite
+            // VisuStella's T1 modification instead of wrapping it.
+            //
+            // Adding all VisuStella plugins as dependencies guarantees the sort
+            // produces a clean two-block order: [all VisuStella] → [all MK].
+            //
+            // These are implicit graph constraints for the sort only — they do NOT
+            // generate "missing dependency" warnings since the plugin authors never
+            // declared them explicitly.
+            const anchorForThisEco = ECOSYSTEM_VISUCORE_ANCHORS[thisEcosystem];
+            if (anchorForThisEco && plugin.name === anchorForThisEco) {
+                loadedPluginsCache.forEach(otherPlugin => {
+                    if (!otherPlugin.status) return;
+                    if (pluginDependenciesMap[plugin.name].includes(otherPlugin.name)) return;
+
+                    const otherEco  = getPluginEcosystem(otherPlugin.name);
+                    const otherTier = extractUniversalTierLevel(otherPlugin);
+
+                    // Depend on every VisuStella plugin (as before)
+                    const isVisuStella = otherEco === 'VisuStella';
+
+                    // Also depend on standalone plugins that declare [Tier X].
+                    // These follow VisuStella's tier convention and alias core
+                    // RPG Maker methods that must be fully built before MK runs.
+                    const isStandaloneWithTier = otherEco === 'standalone' && otherTier !== null;
+
+                    if (isVisuStella || isStandaloneWithTier) {
+                        pluginDependenciesMap[plugin.name].push(otherPlugin.name);
+                    }
+                });
+            }
+
+            // Implicit tier-based dependencies — ONLY within the same ecosystem.
+            // Without this guard, MK Tier 0 (MK_Core) would be incorrectly treated
+            // as a dependency of VisuStella Tier 1 plugins and vice-versa.
             if (currentTier !== null && plugin.status) {
                 loadedPluginsCache.forEach(otherPlugin => {
                     if (otherPlugin.name !== plugin.name && otherPlugin.status) {
+                        const otherEcosystem = getPluginEcosystem(otherPlugin.name);
+                        if (otherEcosystem !== thisEcosystem) return; // different ecosystem — skip
                         const otherTier = extractUniversalTierLevel(otherPlugin);
                         if (otherTier !== null && otherTier < currentTier) {
-                            pluginDependenciesMap[plugin.name].push(otherPlugin.name);
+                            if (!pluginDependenciesMap[plugin.name].includes(otherPlugin.name)) {
+                                pluginDependenciesMap[plugin.name].push(otherPlugin.name);
+                            }
                         }
                     }
                 });
@@ -597,9 +779,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentTier = extractUniversalTierLevel(plugin);
 
             if (currentTier !== null && plugin.status) {
+                const pluginEco = getPluginEcosystem(plugin.name);
                 for (let j = i + 1; j < loadedPluginsCache.length; j++) {
                     const trackingPlugin = loadedPluginsCache[j];
                     if (trackingPlugin.status) {
+                        // Only flag tier violations within the same ecosystem.
+                        // MK uses its own Tier 0-6 numbering independently of
+                        // VisuStella's Tier 0-4 system — cross-ecosystem tier
+                        // comparisons produce meaningless false violations.
+                        if (getPluginEcosystem(trackingPlugin.name) !== pluginEco) continue;
                         const trackingTier = extractUniversalTierLevel(trackingPlugin);
                         if (trackingTier !== null && trackingTier < currentTier) {
                             architecturalViolations.push({
@@ -619,13 +807,81 @@ document.addEventListener('DOMContentLoaded', () => {
             if (plugin.status && scriptFileStorage[fileName]) {
                 const codeText = await scriptFileStorage[fileName].text();
 
-                // Parse @base notetags to register explicit dependencies
-                const baseTagRegex = /@base\s+([A-Za-z0-9_]+)/g;
-                let baseMatch;
-                while ((baseMatch = baseTagRegex.exec(codeText)) !== null) {
-                    const depName = baseMatch[1];
+                // ---------------------------------------------------------------
+                // NAMESPACE DETECTION
+                // ---------------------------------------------------------------
+                // Scan for the plugin's namespace declaration — the line every
+                // well-authored RPG Maker plugin uses to claim its "family":
+                //
+                //   var VisuMZ = VisuMZ || {};   → VisuStella family
+                //   var MK     = MK     || {};   → MK RNGMaps family
+                //   var CGMZ   = CGMZ   || {};   → CGMZ family
+                //
+                // This is more reliable than name-prefix guessing because it comes
+                // directly from the plugin author's own code.
+                //
+                // When a namespace is detected that isn't already known to
+                // getPluginEcosystem(), we register it so the ecosystem-aware tier
+                // comparison and violation detection automatically cover it too.
+                // ---------------------------------------------------------------
+                const nsRegex = /var\s+([A-Za-z][A-Za-z0-9_]*)\s*=\s*\s*\|\|\s*\{\s*\}/g;
+                let nsMatch;
+                while ((nsMatch = nsRegex.exec(codeText)) !== null) {
+                    const ns = nsMatch[1];
+                    // Skip trivial single-letter vars and known JS globals
+                    if (ns.length < 2) continue;
+                    const knownGlobals = new Set(['Imported','PluginManager','DataManager',
+                        'SceneManager','SoundManager','StorageManager','ImageManager',
+                        'Utils','Graphics','Input','TouchInput','AudioManager','window',
+                        'JsonEx','TextManager','ColorManager','ConfigManager','BattleManager']);
+                    if (knownGlobals.has(ns)) continue;
+
+                    // Register the detected namespace on the plugin for later use
+                    // and store it in the shared registry so getPluginEcosystem()
+                    // can use it for ALL subsequent calls involving this plugin.
+                    if (!plugin._detectedNamespace) plugin._detectedNamespace = ns;
+                    detectedNamespaceRegistry[plugin.name] = ns;
+
+                    // If this namespace isn't in our known ecosystem map, add it
+                    // as a new ecosystem keyed by the namespace name itself.
+                    // This makes tier comparisons work correctly for any family
+                    // we haven't hardcoded, as long as source files are dropped.
+                    if (!['VisuStella','MK_RNGMaps','Yanfly_MV','CGMZ','Hime','SRD','standalone']
+                            .includes(ns) && ns !== 'VisuMZ' && ns !== 'MK') {
+                        // Dynamically extend getPluginEcosystem via the plugin's own tag
+                        plugin._dynamicEcosystem = ns;
+                    }
+                }
+
+                // Parse both @base and @orderAfter tags from plugin headers.
+                //
+                // @base      — plugin REQUIRES this dependency to function at all
+                // @orderAfter — plugin must load AFTER this plugin (softer constraint,
+                //               no hard dependency but ordering matters)
+                //
+                // Both are treated as ordering dependencies in the graph. The distinction
+                // is preserved in the label so the user sees which type triggered a warning.
+                const depTagRegex = /@(base|orderAfter)\s+([A-Za-z0-9_]+)/g;
+                let depTagMatch;
+                while ((depTagMatch = depTagRegex.exec(codeText)) !== null) {
+                    const depType = depTagMatch[1];   // 'base' or 'orderAfter'
+                    const depName = depTagMatch[2];
+
                     if (!pluginDependenciesMap[plugin.name].includes(depName)) {
                         pluginDependenciesMap[plugin.name].push(depName);
+                    }
+
+                    // Missing dependency detection — warn if the declared dependency
+                    // isn't present in the loaded plugin list at all.
+                    if (!pluginNameSet.has(depName)) {
+                        architecturalViolations.push({
+                            type: 'missing_dependency',
+                            badPlugin:    plugin.name,
+                            missingDep:   depName,
+                            depType:      depType,
+                            badTier:      null,
+                            baselineTier: null
+                        });
                     }
                 }
 
@@ -670,10 +926,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
+            // --- Ecosystem anchor position check ---
+            // If this plugin is an ecosystem anchor AND VisuMZ_0_CoreEngine exists
+            // in the list but appears AFTER this plugin, flag it as a critical error.
+            // This catches the case where MK_Core is above VisuMZ_0_CoreEngine even
+            // when no source files have been dropped (so @base scanning hasn't run).
+            const thisAnchor = ECOSYSTEM_VISUCORE_ANCHORS[getPluginEcosystem(plugin.name)];
+            if (thisAnchor && plugin.name === thisAnchor && pluginNameSet.has('VisuMZ_0_CoreEngine')) {
+                const coreIdx    = loadedPluginsCache.findIndex(p => p.name === 'VisuMZ_0_CoreEngine');
+                const anchorIdx  = i;
+                if (coreIdx > anchorIdx) {
+                    // Detect which core classes the anchor touches by scanning its source if available
+                    const touchedClasses = [];
+                    const srcFile = scriptFileStorage[`${plugin.name}.js`];
+                    if (srcFile) {
+                        const quickScan = await srcFile.text();
+                        ['Game_Event', 'Game_Map', 'Game_Player', 'Scene_Map', 'Scene_Boot',
+                         'Game_Interpreter', 'DataManager', 'SceneManager'].forEach(cls => {
+                            if (quickScan.includes(`${cls}.prototype`)) touchedClasses.push(cls);
+                        });
+                    }
+                    architecturalViolations.push({
+                        type:           'ecosystem_anchor_order',
+                        badPlugin:      plugin.name,
+                        ecosystem:      getPluginEcosystem(plugin.name),
+                        touchedClasses: touchedClasses.length > 0
+                            ? touchedClasses
+                            : ['core prototype methods'],
+                        badTier:      null,
+                        baselineTier: null
+                    });
+                }
+            }
+
             // Build sidebar list item
             const li = document.createElement('li');
             li.className = 'plugin-item';
-            const tierDisplayLevel = currentTier !== null ? ` [T${currentTier}]` : '';
+            // Show ecosystem prefix in tier badge so MK T1 and VisuStella T1
+            // are visually distinct in the sidebar (e.g. "[MK T1]" vs "[T1]")
+            const eco = getPluginEcosystem(plugin.name);
+            const ecoPrefix = eco !== 'VisuStella' && eco !== 'standalone' ? `${eco.split('_')[0]} ` : '';
+            // Use the parser's computed tier (e.g. -2 for Public_*) rather than the
+            // raw description tier so the badge accurately reflects sort priority
+            const tierDisplayLevel = currentTier !== null ? ` [${ecoPrefix}T${currentTier}]` : '';
             let badgeHTML = '<span style="color:#71717a; font-size:0.8rem; margin-left:auto;">⚪ Need Script</span>';
 
             if (!plugin.status) {
@@ -1061,6 +1356,43 @@ document.addEventListener('DOMContentLoaded', () => {
         let html = '<div class="resolution-center">';
 
         architecturalViolations.forEach((violation) => {
+
+            // --- Missing dependency card ---
+            if (violation.type === 'missing_dependency') {
+                html += `
+                    <div class="alert-card" style="border-left: 4px solid #a78bfa; background:#150d2a;">
+                        <h4 style="color:#a78bfa;">🔍 Missing ${violation.depType === 'base' ? 'Required' : 'Declared'} Plugin: <code>${violation.missingDep}</code></h4>
+                        <p><strong>${violation.badPlugin}</strong> declares <code>@${violation.depType} ${violation.missingDep}</code> in its header but that plugin is not present in the current load list.</p>
+                        <div class="impact-text" style="border-left-color:#a78bfa;">
+                            ${violation.depType === 'base'
+                                ? `This is a <strong>hard dependency</strong> — <strong>${violation.badPlugin}</strong> will likely throw an error or alert at boot without it.`
+                                : `This is a soft ordering constraint — <strong>${violation.badPlugin}</strong> should load after <strong>${violation.missingDep}</strong> but will not crash without it. Verify whether the missing plugin is needed.`
+                            }
+                        </div>
+                    </div>`;
+                return;
+            }
+
+            // --- Ecosystem anchor out-of-order card ---
+            if (violation.type === 'ecosystem_anchor_order') {
+                html += `
+                    <div class="alert-card alert-critical">
+                        <h4 style="color: #ef4444;">⚠️ Ecosystem Root Loading Before VisuMZ_0_CoreEngine</h4>
+                        <p><strong>${violation.badPlugin}</strong> is the root anchor of the <strong>${violation.ecosystem}</strong> ecosystem and is currently positioned <strong>above VisuMZ_0_CoreEngine</strong> in the load order.</p>
+                        <div class="impact-text" style="border-left-color: #ef4444;">
+                            ${violation.badPlugin} directly modifies core RPG Maker prototype methods
+                            (${violation.touchedClasses.join(', ')}). These modifications must alias
+                            <em>VisuStella's already-enhanced versions</em> of those methods — not the
+                            vanilla RPG Maker originals. Loading before CoreEngine reverses that chain
+                            and will cause silent runtime failures or crashes.<br><br>
+                            <strong>Fix:</strong> Place the entire ${violation.ecosystem} plugin group
+                            after all VisuStella plugins. Auto-Optimize will handle this automatically.
+                        </div>
+                    </div>`;
+                return;
+            }
+
+            // --- Tier violation card ---
             html += `
                 <div class="alert-card alert-warning">
                     <h4 style="color: #f59e0b;">⚠️ Sequence Violation: Structural Tier Placement Mismatch</h4>
@@ -1411,6 +1743,9 @@ document.addEventListener('DOMContentLoaded', () => {
         architecturalViolations = [];
         databaseFiles         = {};
         databaseAlerts        = [];
+        // Clear source-scan namespace registry so stale detections from a
+        // previous project don't affect the new one
+        Object.keys(detectedNamespaceRegistry).forEach(k => delete detectedNamespaceRegistry[k]);
 
         // Reset sidebar plugin list
         const listStack = document.getElementById('sortable-plugin-stack');
