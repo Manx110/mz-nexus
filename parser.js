@@ -1,4 +1,4 @@
-// MZ-Nexus: Advanced Core Engine [v3.5] - MV Order Matrix & Read/Write Proxy Sandbox Updated
+// MZ-Nexus: Advanced Core Engine [MZ Production Stable] - Anchor Guard Updates
 
 document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('file-drop-target');
@@ -15,8 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let databaseFiles = {};
     let databaseAlerts = [];
 
-    // Force run the welcome viewport render immediately on page load
-    renderActiveView();
+    // Safe view execution delay pass to guarantee DOM rendering settles on first load
+    setTimeout(() => { renderActiveView(); }, 50);
 
     // --- 1. TAB VIEWPORT MANAGER ---
     tabButtons.forEach(button => {
@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="welcome-message">
                     <h3>System Diagnostics Ready</h3>
                     <p>Drag and drop your project files into the dashed <strong>sidebar drop zone</strong> on the left to begin.</p>
-                    <p style="font-size: 0.85rem; color: #71717a; margin-top: 10px;">Supported files: <code>plugins.js</code>, plugin script files (<code>.js</code>) [MV & MZ Frameworks], and database files (<code>.json</code>).</p>
+                    <p style="font-size: 0.85rem; color: #71717a; margin-top: 10px;">Supported files: <code>plugins.js</code>, plugin script files (<code>.js</code>), and database files (<code>.json</code>).</p>
                 </div>`;
             return;
         }
@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         loadedPluginsCache = JSON.parse(text.substring(startArrayIdx, endArrayIdx + 1));
                     }
                 } catch (err) {
-                    console.error("Plugins.js configuration format exception", err);
+                    console.error("Plugins.js load matrix parsing anomaly", err);
                 }
             } else if (file.name.endsWith('.json')) {
                 hasDatabaseFiles = true;
@@ -109,15 +109,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeBtn) activeBtn.classList.add('active');
     }
 
+    // --- 3. HARD ANCHOR EXTRACTOR PASS ---
     function extractUniversalTierLevel(plugin) {
+        // Strict Foundational Anchor Protection: VisuMZ_0_CoreEngine must lock below all variables
+        if (plugin.name === 'VisuMZ_0_CoreEngine') return -1;
+
         const descMatch = plugin.description ? plugin.description.match(/(?:\[Tier\s*|Tier\s*)(\d+)/i) : null;
         if (descMatch) return parseInt(descMatch[1]);
+        
         const nameMatch = plugin.name.match(/_(\d+)_/);
         if (nameMatch) return parseInt(nameMatch[1]);
+        
         return null; 
     }
 
-    // --- 4. ENGINE LAYOUT DIAGNOSTIC SCANNER ---
+    // --- 4. THE SOURCE CODE DEEP CHECKER & RULE PARSER ---
     async function runDeepProjectScan() {
         const listStack = document.getElementById('sortable-plugin-stack');
         listStack.innerHTML = '';
@@ -127,28 +133,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const globalPrototypeRegistry = {};
         let activePluginsCount = 0;
 
-        // Hardcoded Legacy MV Fallback Maps (When extensions omit internal script tags)
-        const mvImplicitHierarchy = {
-            'YEP_ClassChangeCore': ['YEP_CoreEngine'],
-            'YEP_X_Subclass': ['YEP_ClassChangeCore', 'YEP_CoreEngine'],
-            'YEP_MessageCore': ['YEP_CoreEngine'],
-            'YEP_X_ExtMesPack1': ['YEP_MessageCore'],
-            'YEP_X_MessageMacros1': ['YEP_MessageCore']
-        };
-
         loadedPluginsCache.forEach(plugin => {
             pluginDependenciesMap[plugin.name] = [];
+            const currentTier = extractUniversalTierLevel(plugin);
             
-            // Apply hardcoded MV implicit rules if matching a foundational extension suite
-            if (mvImplicitHierarchy[plugin.name]) {
-                mvImplicitHierarchy[plugin.name].forEach(dep => {
-                    if (!pluginDependenciesMap[plugin.name].includes(dep)) {
-                        pluginDependenciesMap[plugin.name].push(dep);
-                    }
-                });
+            // Explicitly force VisuMZ Core dependencies to recognize VisuMZ_0_CoreEngine as its base anchor layout node
+            if (plugin.name.startsWith('VisuMZ_') && plugin.name !== 'VisuMZ_0_CoreEngine') {
+                pluginDependenciesMap[plugin.name].push('VisuMZ_0_CoreEngine');
             }
 
-            const currentTier = extractUniversalTierLevel(plugin);
             if (currentTier !== null && plugin.status) {
                 loadedPluginsCache.forEach(otherPlugin => {
                     if (otherPlugin.name !== plugin.name && otherPlugin.status) {
@@ -188,23 +181,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (plugin.status && scriptFileStorage[fileName]) {
                 const codeText = await scriptFileStorage[fileName].text();
-                
-                // Rule A: Native MZ Base Tag Check
                 const baseTagRegex = /@base\s+([A-Za-z0-9_]+)/g;
                 let baseMatch;
                 while ((baseMatch = baseTagRegex.exec(codeText)) !== null) {
                     const depName = baseMatch[1];
                     if (!pluginDependenciesMap[plugin.name].includes(depName)) {
-                        pluginDependenciesMap[plugin.name].push(depName);
-                    }
-                }
-
-                // Rule B: Legacy MV Required/Dependency String Extraction
-                const mvRequiredRegex = /@required\s+([A-Za-z0-9_]+)|@depend\s+([A-Za-z0-9_]+)/g;
-                let mvMatch;
-                while ((mvMatch = mvRequiredRegex.exec(codeText)) !== null) {
-                    const depName = mvMatch[1] || mvMatch[2];
-                    if (depName && !pluginDependenciesMap[plugin.name].includes(depName)) {
                         pluginDependenciesMap[plugin.name].push(depName);
                     }
                 }
@@ -349,7 +330,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             baseStats.addState = function() {};
                             baseStats.removeState = function() {};
                             
-                            // Advanced Read/Write Proxy: Safely intercepts assignments (v[121] = x) without throwing execution faults
                             const variableStorageMock = {};
                             const dummyV = new Proxy(variableStorageMock, {
                                 get: function(target, prop) {
