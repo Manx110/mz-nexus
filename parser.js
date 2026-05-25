@@ -474,8 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderActiveView();
         
         alert("🚀 Universal Layout Matrix Alignment Complete!\nAll structural component tiers sorted and patches snapped securely to targets.");
-        await runDeepProjectScan();
-        setTimeout(() => { renderActiveView(); }, 50); // Forces the DOM to repaint instantly
+
     });
 
     document.getElementById('btn-export').addEventListener('click', () => {
