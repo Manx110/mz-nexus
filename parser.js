@@ -677,6 +677,28 @@ document.addEventListener('DOMContentLoaded', () => {
                                 details: `The note box has ${openBrackets} opening '&lt;' brackets and ${closeBrackets} closing '&gt;' brackets. This asymmetry will cause complex plugin parameters to fail.`
                             });
                         }
+
+                        // --- EMPTY PARAMETER CHECK ---
+                        // Catches notetags of the form <TagName: > where a required value
+                        // was left blank — e.g. <Multi-Element: > instead of <Multi-Element: 2>.
+                        // RPG Maker and plugins silently ignore or misread these, causing the
+                        // feature to simply not apply with no obvious error message in-game.
+                        const emptyParamRegex = /<([^>]+?):\s*>/g;
+                        let emptyMatch;
+                        while ((emptyMatch = emptyParamRegex.exec(entry.note)) !== null) {
+                            const tagName = emptyMatch[1].trim();
+                            databaseAlerts.push({
+                                file: fileName,
+                                item: name,
+                                id: entry.id || index,
+                                type: 'Incomplete Notetag',
+                                issue: `Missing parameter value in &lt;${tagName}: &gt;`,
+                                originalFormula: null,
+                                suggestedFormula: null,
+                                suggestions: [],
+                                details: `The notetag <code>&lt;${tagName}: &gt;</code> has a colon indicating a required value, but the value is empty. The plugin will silently ignore this tag or produce unexpected behaviour. Add the missing value — e.g. <code>&lt;${tagName}: 2&gt;</code>.`
+                            });
+                        }
                     }
 
                     // Validate and sandbox-execute damage formulas
@@ -702,9 +724,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         // Math.floor(expr)/divisor floors only the numerator before dividing.
                         // Suggest wrapping the full expression to make intent unambiguous.
+                        //
+                        // FIX: The regex [^)]+ stops at the FIRST ')' in the string, not the
+                        // one that actually closes Math.floor. For an already-corrected formula
+                        // like Math.floor((a.atk-10) / 2), it would match:
+                        //   Math.floor( → captures (a.atk-10 → hits ) → sees / 2
+                        // falsely re-flagging a formula the user already fixed.
+                        // Guard: if the character immediately after the full regex match is ')',
+                        // the division was inside Math.floor and is already correct — skip it.
                         const floorDivideRegex = /Math\.floor\(([^)]+)\)\s*\/\s*(\d+)/g;
                         let floorMatch;
                         while ((floorMatch = floorDivideRegex.exec(suggestedFormula)) !== null) {
+                            const charAfterMatch = suggestedFormula[floorMatch.index + floorMatch[0].length];
+                            if (charAfterMatch === ')') {
+                                // Division is already inside Math.floor — pattern is correct, skip
+                                continue;
+                            }
                             const inner   = floorMatch[1];
                             const divisor = floorMatch[2];
                             const replacement = `Math.floor((${inner}) / ${divisor})`;
@@ -921,15 +956,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const errors      = databaseAlerts.filter(a => a.type !== 'Style Suggestion');
+        const hardErrors  = databaseAlerts.filter(a => a.type !== 'Style Suggestion' && a.type !== 'Incomplete Notetag');
+        const warnings    = databaseAlerts.filter(a => a.type === 'Incomplete Notetag');
         const suggestions = databaseAlerts.filter(a => a.type === 'Style Suggestion');
 
         let html = '<div class="resolution-center">';
 
-        // --- Hard errors first ---
-        if (errors.length > 0) {
+        // --- Hard errors (red) ---
+        if (hardErrors.length > 0) {
             html += `<h3 style="color:#ef4444; margin-bottom:15px;">Database QA Anomalies Detected</h3>`;
-            errors.forEach(alert => {
+            hardErrors.forEach(alert => {
                 html += `
                     <div class="db-alert-card" style="border-left-color:#ef4444;">
                         <h4>🚨 ${alert.type}: ${alert.issue}</h4>
@@ -941,6 +977,25 @@ document.addEventListener('DOMContentLoaded', () => {
                             ${alert.details}
                             ${alert.originalFormula ? `<br><code>Formula: ${alert.originalFormula}</code>` : ''}
                         </div>
+                    </div>`;
+            });
+        }
+
+        // --- Incomplete notetag warnings (amber) ---
+        if (warnings.length > 0) {
+            html += `<h3 style="color:#f59e0b; margin-bottom:15px; margin-top:${hardErrors.length > 0 ? '28px' : '0'};">⚠️ Incomplete Notetags</h3>
+                     <p style="color:#71717a; font-size:0.85rem; margin-bottom:16px; margin-top:-10px;">
+                         These notetags have a colon indicating a required value but the value is empty. The plugin will silently ignore them in-game.
+                     </p>`;
+            warnings.forEach(alert => {
+                html += `
+                    <div class="db-alert-card" style="border-left-color:#f59e0b; background:#1a1500;">
+                        <h4 style="color:#f59e0b;">⚠️ ${alert.issue}</h4>
+                        <p style="color:#e4e4e7; margin-bottom:4px;">
+                            <strong>Target:</strong> ${alert.item} (ID: ${alert.id}) |
+                            <strong>Source:</strong> ${alert.file}
+                        </p>
+                        <div class="impact-text" style="border-left-color:#f59e0b;">${alert.details}</div>
                     </div>`;
             });
         }
