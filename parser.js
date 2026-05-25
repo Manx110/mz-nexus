@@ -45,11 +45,13 @@ const JS_NOTETAG_PATTERNS = [
     },
 
     // -------------------------------------------------------------------------
-    // YANFLY (MV legacy, sometimes ported to MZ)
+    // YANFLY (MV legacy — pre-VisuStella) / VISUSTELLA <Custom> tags
+    // VisuStella MZ also uses <Custom ...> (e.g. Custom Cost Text in SkillsStatesCore).
+    // VisuStella pattern above catches those first; dedup prevents double-reporting.
     // Block format:  <Custom Pre-Damage> ... </Custom Pre-Damage>  etc.
     // -------------------------------------------------------------------------
     {
-        plugin: 'Yanfly MV (legacy)',
+        plugin: 'Yanfly MV (legacy) / VisuStella MZ Custom tags',
         args: ['user', 'target', 'value', 'skill', 'item'],
         extract(note) {
             const results = [];
@@ -128,6 +130,84 @@ const JS_NOTETAG_PATTERNS = [
     // -------------------------------------------------------------------------
 
 ];
+
+// =============================================================================
+// CODE BALANCE ANALYSER
+// =============================================================================
+// Called after a SyntaxError is caught in a JS notetag block. Independently
+// walks the code to count unbalanced parentheses and braces, then attempts to
+// generate a corrected version of the code. This is separate from new Function()
+// because JS engines stop at the *first* syntax error they encounter — so a block
+// with both a missing ')' AND a missing ';' only surfaces the paren error via the
+// engine. This analyser catches everything in one pass.
+// =============================================================================
+function analyzeCodeBalance(code) {
+    const findings = [];
+    let parenCount = 0, braceCount = 0;
+    let inLineComment = false, inBlockComment = false;
+    let inString = false, strChar = '';
+
+    for (let i = 0; i < code.length; i++) {
+        const ch   = code[i];
+        const next = code[i + 1] || '';
+
+        if (inBlockComment) {
+            if (ch === '*' && next === '/') { inBlockComment = false; i++; }
+            continue;
+        }
+        if (inLineComment) {
+            if (ch === '\n') inLineComment = false;
+            continue;
+        }
+        if (inString) {
+            if (ch === strChar && code[i - 1] !== '\\') inString = false;
+            continue;
+        }
+
+        if (ch === '/' && next === '/') { inLineComment = true;  i++; continue; }
+        if (ch === '/' && next === '*') { inBlockComment = true; i++; continue; }
+        if (ch === '"' || ch === "'" || ch === '`') { inString = true; strChar = ch; continue; }
+
+        if      (ch === '(') parenCount++;
+        else if (ch === ')') parenCount--;
+        else if (ch === '{') braceCount++;
+        else if (ch === '}') braceCount--;
+    }
+
+    let fixedCode  = code.trimEnd();
+    let canAutoFix = true;
+
+    if (parenCount > 0) {
+        const plural = parenCount === 1 ? 'is' : 'es';
+        findings.push(`Missing ${parenCount} closing parenthes${plural}: <code>${')'.repeat(parenCount)}</code>`);
+        // Append the missing parens + semicolon to the last substantive line
+        const lines = fixedCode.split('\n');
+        for (let i = lines.length - 1; i >= 0; i--) {
+            const t = lines[i].trim();
+            if (t && !t.startsWith('//') && t !== '{' && t !== '}') {
+                lines[i] = lines[i].trimEnd().replace(/;$/, '') + ')'.repeat(parenCount) + ';';
+                break;
+            }
+        }
+        fixedCode = lines.join('\n');
+    } else if (parenCount < 0) {
+        findings.push(`${-parenCount} extra closing parenthes${-parenCount === 1 ? 'is' : 'es'} with no matching open — remove the extra <code>)</code>.`);
+        canAutoFix = false;
+    }
+
+    if (braceCount > 0) {
+        findings.push(`Missing ${braceCount} closing brace${braceCount === 1 ? '' : 's'}: <code>${'}'.repeat(braceCount)}</code>`);
+        fixedCode += '\n' + '}'.repeat(braceCount);
+    } else if (braceCount < 0) {
+        findings.push(`${-braceCount} extra closing brace${-braceCount === 1 ? '' : 's'} with no matching open.`);
+        canAutoFix = false;
+    }
+
+    return {
+        findings,
+        suggestedFix: (canAutoFix && findings.length > 0) ? fixedCode : null
+    };
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('file-drop-target');
@@ -490,6 +570,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                                     alreadyReported.add(code);
 
+                                    // JS engines report only the FIRST syntax error they hit.
+                                    // Run our own balance analyser to surface ALL issues
+                                    // (e.g. missing ')' AND missing ';' in one pass) and
+                                    // attempt to generate a corrected version of the code.
+                                    const balance = analyzeCodeBalance(code);
+
                                     const lineMatch = err.message.match(/line (\d+)/i) ||
                                                       (err.stack && err.stack.match(/:(\d+):/));
                                     const lineHint  = lineMatch
@@ -502,6 +588,23 @@ document.addEventListener('DOMContentLoaded', () => {
                                         .replace(/</g, '&lt;')
                                         .replace(/>/g, '&gt;');
 
+                                    // Build the full findings list: engine message first,
+                                    // then any additional issues found by the balance analyser
+                                    const engineFinding = `Parse failure${lineHint}: <em>${err.message}</em>`;
+                                    const allFindings = [engineFinding, ...balance.findings];
+                                    const findingsList = allFindings
+                                        .map(f => `<li style="margin-bottom:5px;">${f}</li>`)
+                                        .join('');
+
+                                    // If we can auto-fix, show a side-by-side diff
+                                    const fixBlock = balance.suggestedFix
+                                        ? `<div style="margin-top:12px;">
+                                               <p style="color:#34d399; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Suggested Fix</p>
+                                               <code style="display:block; background:#0a1a0a; padding:8px 10px; border-radius:4px; color:#34d399; white-space:pre; overflow-x:auto;">${balance.suggestedFix.trim().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</code>
+                                               <p style="color:#71717a; font-size:0.8rem; margin-top:6px;">⚠️ Always verify auto-suggested fixes before applying — complex logic may require manual review.</p>
+                                           </div>`
+                                        : '';
+
                                     databaseAlerts.push({
                                         file: fileName,
                                         item: name,
@@ -512,9 +615,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                         suggestedFormula: null,
                                         suggestions: [],
                                         details: `<strong>Plugin:</strong> ${pattern.plugin}<br>
-                                                  Parse failure${lineHint}: <em>${err.message}</em><br>
-                                                  This will cause a crash when the engine executes this notetag in-game.<br>
-                                                  <code style="display:block; margin-top:8px; white-space:pre; overflow-x:auto;">${escaped}</code>`
+                                                  This will cause a crash when the engine executes this notetag in-game.
+                                                  <ul style="margin:10px 0 10px 0; padding-left:18px; line-height:1.8;">${findingsList}</ul>
+                                                  <code style="display:block; margin-top:8px; white-space:pre; overflow-x:auto;">${escaped}</code>
+                                                  ${fixBlock}`
                                     });
                                 }
                             });
