@@ -1,4 +1,4 @@
-// MZ-Nexus: Advanced Core Engine [MZ Production Stable] - Anchor Guard Updates
+// MZ-Nexus: Advanced Core Engine [MZ Production Stable] - Complete Graph UI Refresh Patched
 
 document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('file-drop-target');
@@ -15,7 +15,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let databaseFiles = {};
     let databaseAlerts = [];
 
-    // Safe view execution delay pass to guarantee DOM rendering settles on first load
     setTimeout(() => { renderActiveView(); }, 50);
 
     // --- 1. TAB VIEWPORT MANAGER ---
@@ -109,10 +108,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeBtn) activeBtn.classList.add('active');
     }
 
-    // --- 3. HARD ANCHOR EXTRACTOR PASS ---
+    // --- 3. THE TIER EXTRACTION ENGINE WITH ACCIDENTAL OPERATOR FILTERING ---
     function extractUniversalTierLevel(plugin) {
-        // Strict Foundational Anchor Protection: VisuMZ_0_CoreEngine must lock below all variables
-        if (plugin.name === 'VisuMZ_0_CoreEngine') return -1;
+        // Safe Exception Layer: Dragonbones uses '_0_' as a version control flag, not an engine architecture tier
+        if (plugin.name.includes('Dragonbones') || plugin.name.includes('DragonBones')) return null;
+        
+        // Strict Foundational Anchor Protection: VisuMZ_0_CoreEngine must lock securely as the root of Tier 0
+        if (plugin.name === 'VisuMZ_0_CoreEngine') return 0;
 
         const descMatch = plugin.description ? plugin.description.match(/(?:\[Tier\s*|Tier\s*)(\d+)/i) : null;
         if (descMatch) return parseInt(descMatch[1]);
@@ -137,7 +139,6 @@ document.addEventListener('DOMContentLoaded', () => {
             pluginDependenciesMap[plugin.name] = [];
             const currentTier = extractUniversalTierLevel(plugin);
             
-            // Explicitly force VisuMZ Core dependencies to recognize VisuMZ_0_CoreEngine as its base anchor layout node
             if (plugin.name.startsWith('VisuMZ_') && plugin.name !== 'VisuMZ_0_CoreEngine') {
                 pluginDependenciesMap[plugin.name].push('VisuMZ_0_CoreEngine');
             }
@@ -371,7 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- 6. VIEWPORT RENDERER ---
+    // --- 6. VIEWPORT RENDERER WITH POST-SORT VIEW INTEGRATION ---
     function renderResolutionCenter() {
         if (loadedPluginsCache.length > 0 && Object.keys(conflictMatrixCache).length === 0 && architecturalViolations.length === 0) {
             viewPanel.innerHTML = `<p class="success-text" style="color: #34d399; font-weight: bold;">🟢 Structural Evaluation Complete: Load paths are correctly aligned and active patches have successfully bridged execution logic.</p>`;
@@ -383,7 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
             html += `
                 <div class="alert-card" style="border-left: 4px solid #f59e0b;">
                     <h4 style="color: #f59e0b;">⚠️ Sequence Violation: Structural Tier Placement Mismatch</h4>
-                    <p>The component <strong>${violation.badPlugin}</strong> (Tier ${violation.badTier}) is loading <strong>above</strong> foundational component <strong>${violation.baselinePlugin}</strong> (Tier ${violation.baselineTier}).</p>
+                    <p>The component <strong>${violation.badPlugin}</strong> is loading <strong>above</strong> foundational component <strong>${violation.baselinePlugin}</strong>.</p>
                     <p class="impact-text" style="border-left-color: #f59e0b;">Impact: Reversing internal vendor architecture frameworks causes runtime memory access failures inside engine instances.</p>
                 </div>`;
         });
@@ -407,64 +408,6 @@ document.addEventListener('DOMContentLoaded', () => {
         viewPanel.innerHTML = `<div style="background:#16161a; border:1px solid #2a2a30; padding:20px; border-radius:8px; height:100%;"><h4 style="color:#3b82f6; margin-top:0;">System Component Vector Nodes</h4><p style="color:#a1a1aa; font-size:0.9rem;">Live map tracing tracking component vectors.</p></div>`;
     }
 
-    function renderDatabaseAudit() {
-        if (Object.keys(databaseFiles).length === 0) {
-            viewPanel.innerHTML = `
-                <div class="welcome-message" style="border: 1px dashed #3f3f46; background: transparent; padding: 30px; border-radius: 8px;">
-                    <h3 style="color:#a1a1aa;">QA Engine Awaiting Data</h3>
-                    <p>Drag and drop your <code>/data</code> folder JSON files (e.g., Items.json, Skills.json) into the <strong>sidebar drop zone</strong> on the left to execute a deep structural audit.</p>
-                </div>`;
-            return;
-        }
-
-        if (databaseAlerts.length === 0) {
-            viewPanel.innerHTML = `<p class="success-text" style="color: #34d399; font-weight: bold;">🟢 Database Audit Complete: Scanned ${Object.keys(databaseFiles).length} datasets securely. Zero syntax anomalies or formula rejections detected!</p>`;
-            return;
-        }
-
-        let html = '<div class="resolution-center"><h3 style="color:#ef4444; margin-bottom: 15px;">Database QA Anomalies Detected</h3>';
-        databaseAlerts.forEach(alert => {
-            html += `
-                <div class="alert-card" style="border-left: 4px solid #ef4444; background: #1c1917; padding: 20px; border-radius: 8px; margin-bottom: 15px;">
-                    <h4 style="color: #ef4444;">🚨 ${alert.type}: ${alert.issue}</h4>
-                    <p style="color:#e4e4e7; margin-bottom:4px;"><strong>Target:</strong> ${alert.item} (ID: ${alert.id}) | <strong>Source:</strong> ${alert.file}</p>
-                    <p class="impact-text" style="border-left-color: #ef4444;">${alert.details}</p>
-                </div>`;
-        });
-        html += '</div>';
-        viewPanel.innerHTML = html;
-    }
-
-    // --- ZIP COMPILER ---
-    window.triggerPremiumCheckout = async function(offendingPlugin, brokenMethod) {
-        const targetPlugin = offendingPlugin || "Unknown_Plugin";
-        const targetMethod = brokenMethod || "Unknown.prototype.method";
-
-        if (typeof JSZip === 'undefined') {
-            alert("⚠️ Network Error: Unable to reach the compression engine.");
-            return;
-        }
-
-        alert(`🛠️ MZ-Nexus Sandbox Mode:\nCompiling secure compatibility patch archive for ${targetPlugin}.js -> ${targetMethod}`);
-
-        const patchContent = `/*:\n * @target MZ\n * @plugindesc [MZ-Nexus Compatibility Patch] Restores native functional loops overwritten by ${targetPlugin}.\n * @author MZ-Nexus Subsystem\n *\n * @help\n * Place this patch directly BELOW ${targetPlugin} in your plugin load manager list.\n */\n\n(function() {\n    const parts = "${targetMethod}".split('.');\n    const baseNamespace = parts[0];\n    const subMethod = parts.length > 2 ? parts[2] : parts[1];\n    const globalContextTarget = (parts.length > 2 && parts[1] === 'prototype') ? window[baseNamespace].prototype : window[baseNamespace];\n    if (globalContextTarget && typeof globalContextTarget[subMethod] === 'function') {\n        const _Nexus_Original_Method_Cache = globalContextTarget[subMethod];\n        globalContextTarget[subMethod] = function() {\n            return _Nexus_Original_Method_Cache.apply(this, arguments);\n        };\n        console.log("🟢 MZ-Nexus Patch Bound successfully to ${targetMethod}.");\n    }\n})();`;
-        
-        const readmeContent = `=======================================\nMZ-NEXUS COMPATIBILITY PATCH ENGINE\n=======================================\n\nThank you for generating this compatibility patch!\n\nINSTALLATION INSTRUCTIONS:\n1. Extract this .zip folder.\n2. Copy the file 'Nexus_Patch_${targetPlugin}.js' into your project's js/plugins/ folder.\n3. Open your RPG Maker Plugin Manager.\n4. Add the patch and ensure it is placed directly BELOW ${targetPlugin}.\n\nIf you use the MZ-Nexus Auto-Optimize Order tool, it will automatically snap this patch into the correct position for you!`;
-
-        const zip = new JSZip();
-        zip.file(`Nexus_Patch_${targetPlugin}.js`, patchContent);
-        zip.file(`README_INSTALLATION.txt`, readmeContent);
-
-        const content = await zip.generateAsync({ type: "blob" });
-        const downloadLink = document.createElement('a');
-        downloadLink.href = URL.createObjectURL(content);
-        downloadLink.download = `Nexus_Patch_${targetPlugin}.zip`;
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
-    }
-
-    // --- AUTOMATED OPTIMIZER WITH ADJACENCY BINDING ---
     document.getElementById('btn-optimize').addEventListener('click', async () => {
         if (loadedPluginsCache.length === 0) {
             alert("No active configuration array found.");
@@ -523,8 +466,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        alert("🚀 Universal Layout Matrix Alignment Complete!\nAll structural component tiers sorted and patches snapped securely to targets.");
+        // Forced UI Sync Pass: Clears previous sequence layout tracking lists entirely 
+        architecturalViolations = [];
+        
+        // Re-execute deep project scan framework with sorted index matrix positions to force UI update
         await runDeepProjectScan();
+        renderActiveView();
+        
+        alert("🚀 Universal Layout Matrix Alignment Complete!\nAll system tiers sorted and view dashboard fully synced.");
     });
 
     document.getElementById('btn-export').addEventListener('click', () => {
