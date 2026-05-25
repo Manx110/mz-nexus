@@ -1,4 +1,4 @@
-// MZ-Nexus: Complete Advanced Core with Zip Compiler, Topological Graph & Advanced Database QA Subsystem
+// MZ-Nexus: Complete Advanced Core - Purged Auto-Shift Index & Fully Tuned DB Sandbox Engine
 
 document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('file-drop-target');
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="welcome-message">
                     <h3>System Diagnostics Ready</h3>
                     <p>Drag and drop your project files into the dashed <strong>sidebar drop zone</strong> on the left to begin.</p>
-                    <p style="font-size: 0.85rem; color: #71717a; margin-top: 10px;">Supported files: <code>plugins.js</code>, plugin script files (<code>.js</code>), and database files (<code>.json</code>).</p>
+                    <p style="font-size: 0.85rem; color: #71717a; margin-top: 10px;">Supported files: <code>plugins.js</code>, plugin script files (<code>.js</code>) [MV & MZ Compatible], and database files (<code>.json</code>) [MZ Optimization Tuned].</p>
                 </div>`;
             return;
         }
@@ -106,14 +106,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeBtn) activeBtn.classList.add('active');
     }
 
-    // --- 3. UNIVERSAL TIER DETECTOR EXTRACTOR FUNCTION ---
     function extractUniversalTierLevel(plugin) {
         const descMatch = plugin.description ? plugin.description.match(/(?:\[Tier\s*|Tier\s*)(\d+)/i) : null;
         if (descMatch) return parseInt(descMatch[1]);
-
         const nameMatch = plugin.name.match(/_(\d+)_/);
         if (nameMatch) return parseInt(nameMatch[1]);
-
         return null; 
     }
 
@@ -146,7 +143,6 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < loadedPluginsCache.length; i++) {
             const plugin = loadedPluginsCache[i];
             if (plugin.status) activePluginsCount++;
-            
             const currentTier = extractUniversalTierLevel(plugin);
 
             if (currentTier !== null && plugin.status) {
@@ -171,7 +167,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (plugin.status && scriptFileStorage[fileName]) {
                 const codeText = await scriptFileStorage[fileName].text();
-                
                 const baseTagRegex = /@base\s+([A-Za-z0-9_]+)/g;
                 let baseMatch;
                 while ((baseMatch = baseTagRegex.exec(codeText)) !== null) {
@@ -195,10 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const safetyType = hasAliasCall ? 'SAFE_ALIAS' : 'CRITICAL_OVERWRITE';
                     
                     scanResult.hooks.push({ methodKey, safetyType });
-
-                    if (!globalPrototypeRegistry[methodKey]) {
-                        globalPrototypeRegistry[methodKey] = [];
-                    }
+                    if (!globalPrototypeRegistry[methodKey]) globalPrototypeRegistry[methodKey] = [];
                     globalPrototypeRegistry[methodKey].push({ pluginName: plugin.name, safetyType });
                 }
             }
@@ -207,11 +199,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 let targetBullyPlugin = plugin.name.split('Nexus_Patch_')[1];
                 if (targetBullyPlugin) {
                     targetBullyPlugin = targetBullyPlugin.replace(/\s\(\d+\)$/, '');
-                    
                     if (!pluginDependenciesMap[plugin.name].includes(targetBullyPlugin)) {
                         pluginDependenciesMap[plugin.name].push(targetBullyPlugin);
                     }
-                    
                     Object.keys(pluginDependenciesMap).forEach(key => {
                         if (key !== plugin.name && pluginDependenciesMap[key].includes(targetBullyPlugin)) {
                             const idx = pluginDependenciesMap[key].indexOf(targetBullyPlugin);
@@ -264,9 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let targetName = patch.name.split('Nexus_Patch_')[1];
             if (targetName) {
                 targetName = targetName.replace(/\s\(\d+\)$/, '');
-                if (conflictMatrixCache[targetName]) {
-                    delete conflictMatrixCache[targetName]; 
-                }
+                if (conflictMatrixCache[targetName]) delete conflictMatrixCache[targetName]; 
             }
         });
 
@@ -286,7 +274,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!entry) return; 
                     const name = entry.name || `Unnamed Object (ID: ${entry.id || index})`;
 
-                    // --- CHECK 1: ADVANCED BRACKET PARSER ---
                     if (entry.note) {
                         let sanitizedNote = entry.note.replace(/<([^>]+)>[\s\S]*?<\/\1>/ig, '');
                         sanitizedNote = sanitizedNote.replace(/<=|>=|=>|->|<-/g, '');
@@ -307,11 +294,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
 
-                    // --- CHECK 2: RUNTIME FORMULA SANDBOX ---
                     if (entry.damage && entry.damage.formula && entry.damage.formula.trim() !== '') {
                         try {
                             const testFunc = new Function('a', 'b', 'v', 'sign', `return ${entry.damage.formula}`);
-                            
                             const baseStats = { hp:100, mp:50, tp:10, mhp:100, mmp:50, atk:20, def:10, mat:20, mdf:10, agi:15, luk:15, level:5 };
                             
                             baseStats.hpRate = function() { return 1; };
@@ -328,7 +313,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             baseStats.removeState = function() {};
                             
                             const dummyV = new Proxy([], { get: function(target, prop) { return 5; } });
-                            
                             const result = testFunc(baseStats, baseStats, dummyV, 1);
                             
                             if (typeof result === 'number' && isNaN(result)) {
@@ -359,35 +343,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- 6. INTERACTIVE RESOLUTION VIEW CONTROL ---
+    // --- 6. INTERACTIVE RESOLUTION VIEW CONTROL (COMPLETELY PURGED AUTO-SHIFT) ---
     function renderResolutionCenter() {
         if (loadedPluginsCache.length > 0 && Object.keys(conflictMatrixCache).length === 0 && architecturalViolations.length === 0) {
-            viewPanel.innerHTML = `<p class="success-text">🟢 Structural Evaluation Complete: Load paths are correctly aligned and active patches have successfully bridged execution logic.</p>`;
+            viewPanel.innerHTML = `<p class="success-text" style="color: #34d399; font-weight: bold;">🟢 Structural Evaluation Complete: Load paths are correctly aligned and active patches have successfully bridged execution logic.</p>`;
             return;
         }
 
         let html = '<div class="resolution-center">';
         architecturalViolations.forEach((violation) => {
             html += `
-                <div class="alert-card" style="border-left-color: #f59e0b;">
-                    <h4 style="color: #f59e0b;">⚠️ Sequence Violation: Structural Tier Placement Mismatch</h4>
+                <div class="alert-card" style="border-left: 4px solid #f59e0b; background: #1c1917; padding: 20px; border-radius: 8px; margin-bottom: 15px;">
+                    <h4 style="color: #f59e0b; margin-top: 0;">⚠️ Sequence Violation: Structural Tier Placement Mismatch</h4>
                     <p>The component <strong>${violation.badPlugin}</strong> (Tier ${violation.badTier}) is loading <strong>above</strong> foundational component <strong>${violation.baselinePlugin}</strong> (Tier ${violation.baselineTier}).</p>
                     <p class="impact-text">Impact: Reversing internal vendor architecture frameworks causes runtime memory access failures inside engine instances.</p>
-                    <div class="card-actions">
-                        <button class="btn-fix" style="background:#27272a; color:#f59e0b; border-color:#f59e0b;" onclick="alert('Use the Auto-Optimize Order button below to automatically realign the universal tier graph.')">Requires Structural Alignment</button>
-                    </div>
                 </div>`;
         });
 
         for (const [pluginName, details] of Object.entries(conflictMatrixCache)) {
             html += `
-                <div class="alert-card">
-                    <h4>⚠️ Critical Function Overwrite Verified: <code>${details.method}</code></h4>
+                <div class="alert-card" style="border-left: 4px solid #ef4444; background: #18181b; padding: 20px; border-radius: 8px; margin-bottom: 15px;">
+                    <h4 style="color: #ef4444; margin-top: 0;">⚠️ Critical Function Overwrite Verified: <code>${details.method}</code></h4>
                     <p>The code inside <strong>${pluginName}.js</strong> explicitly replaces this core routine without an internal backward-compatible alias loop.</p>
                     <p class="impact-text">Impact Statement: ${details.impact}</p>
-                    <div class="card-actions">
-                        <button class="btn-fix" onclick="executeAutoOrderFix('${pluginName}')">Auto-Shift Index</button>
-                        <button class="btn-premium" onclick="triggerPremiumCheckout('${pluginName}', '${details.method}')">Generate Compatibility Patch</button>
+                    <div class="card-actions" style="margin-top: 15px;">
+                        <button class="btn-premium" style="padding: 8px 16px; background: #3b82f6; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;" onclick="triggerPremiumCheckout('${pluginName}', '${details.method}')">Generate Compatibility Patch</button>
                     </div>
                 </div>`;
         }
@@ -396,13 +376,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderConflictMap() {
-        viewPanel.innerHTML = `<div style="background:#16161a; border:1px solid #2a2a30; padding:20px; border-radius:8px; height:100%;"><h4 style="color:#3b82f6;">System Component Vector Nodes</h4><p style="color:#a1a1aa; font-size:0.9rem;">Live map tracing tracking component vectors.</p></div>`;
+        viewPanel.innerHTML = `<div style="background:#16161a; border:1px solid #2a2a30; padding:20px; border-radius:8px; height:100%;"><h4 style="color:#3b82f6; margin-top:0;">System Component Vector Nodes</h4><p style="color:#a1a1aa; font-size:0.9rem;">Live map tracing tracking component vectors.</p></div>`;
     }
 
     function renderDatabaseAudit() {
         if (Object.keys(databaseFiles).length === 0) {
             viewPanel.innerHTML = `
-                <div class="welcome-message" style="border: 1px dashed #3f3f46; background: transparent;">
+                <div class="welcome-message" style="border: 1px dashed #3f3f46; background: transparent; padding: 30px; border-radius: 8px;">
                     <h3 style="color:#a1a1aa;">QA Engine Awaiting Data</h3>
                     <p>Drag and drop your <code>/data</code> folder JSON files (e.g., Items.json, Skills.json) into the <strong>sidebar drop zone</strong> on the left to execute a deep structural audit.</p>
                 </div>`;
@@ -410,31 +390,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (databaseAlerts.length === 0) {
-            viewPanel.innerHTML = `<p class="success-text">🟢 Database Audit Complete: Scanned ${Object.keys(databaseFiles).length} datasets securely. Zero syntax anomalies or formula rejections detected!</p>`;
+            viewPanel.innerHTML = `<p class="success-text" style="color: #34d399; font-weight: bold;">🟢 Database Audit Complete: Scanned ${Object.keys(databaseFiles).length} datasets securely. Zero syntax anomalies or formula rejections detected!</p>`;
             return;
         }
 
         let html = '<div class="resolution-center"><h3 style="color:#ef4444; margin-bottom: 15px;">Database QA Anomalies Detected</h3>';
         databaseAlerts.forEach(alert => {
             html += `
-                <div class="alert-card" style="border-left-color: #ef4444;">
-                    <h4 style="color: #ef4444;">🚨 ${alert.type}: ${alert.issue}</h4>
+                <div class="alert-card" style="border-left: 4px solid #ef4444; background: #1c1917; padding: 20px; border-radius: 8px; margin-bottom: 15px;">
+                    <h4 style="color: #ef4444; margin-top:0;">🚨 ${alert.type}: ${alert.issue}</h4>
                     <p style="color:#e4e4e7; margin-bottom:4px;"><strong>Target:</strong> ${alert.item} (ID: ${alert.id}) | <strong>Source:</strong> ${alert.file}</p>
-                    <p class="impact-text">${alert.details}</p>
+                    <p class="impact-text" style="border-left-color: #ef4444;">${alert.details}</p>
                 </div>`;
         });
         html += '</div>';
         viewPanel.innerHTML = html;
-    }
-
-    window.executeAutoOrderFix = function(offendingPlugin) {
-        const pluginIdx = loadedPluginsCache.findIndex(p => p.name === offendingPlugin);
-        if (pluginIdx > 0) {
-            const [movedPlugin] = loadedPluginsCache.splice(pluginIdx, 1);
-            loadedPluginsCache.unshift(movedPlugin); 
-            alert(`⚙️ Shift Matrix Complete: Moved ${offendingPlugin} to prioritize execution.`);
-            runDeepProjectScan();
-        }
     }
 
     // --- ZIP COMPILER ---
@@ -451,7 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const patchContent = `/*:\n * @target MZ\n * @plugindesc [MZ-Nexus Compatibility Patch] Restores native functional loops overwritten by ${targetPlugin}.\n * @author MZ-Nexus Subsystem\n *\n * @help\n * Place this patch directly BELOW ${targetPlugin} in your plugin load manager list.\n */\n\n(function() {\n    const parts = "${targetMethod}".split('.');\n    const baseNamespace = parts[0];\n    const subMethod = parts.length > 2 ? parts[2] : parts[1];\n    const globalContextTarget = (parts.length > 2 && parts[1] === 'prototype') ? window[baseNamespace].prototype : window[baseNamespace];\n    if (globalContextTarget && typeof globalContextTarget[subMethod] === 'function') {\n        const _Nexus_Original_Method_Cache = globalContextTarget[subMethod];\n        globalContextTarget[subMethod] = function() {\n            return _Nexus_Original_Method_Cache.apply(this, arguments);\n        };\n        console.log("🟢 MZ-Nexus Patch Bound successfully to ${targetMethod}.");\n    }\n})();`;
         
-        const readmeContent = `=======================================\nMZ-NEXUS COMPATIBILITY PATCH ENGINE\n=======================================\n\nThank you for generating this compatibility patch!\n\nINSTALLATION INSTRUCTIONS:\n1. Extract this .zip folder.\n2. Copy the file 'Nexus_Patch_${targetPlugin}.js' into your project's js/plugins/ folder.\n3. Open your RPG Maker MZ Plugin Manager.\n4. Add the patch and ensure it is placed directly BELOW ${targetPlugin}.\n\nIf you use the MZ-Nexus Auto-Optimize Order tool, it will automatically snap this patch into the correct position for you!`;
+        const readmeContent = `=======================================\nMZ-NEXUS COMPATIBILITY PATCH ENGINE\n=======================================\n\nThank you for generating this compatibility patch!\n\nINSTALLATION INSTRUCTIONS:\n1. Extract this .zip folder.\n2. Copy the file 'Nexus_Patch_${targetPlugin}.js' into your project's js/plugins/ folder.\n3. Open your RPG Maker Plugin Manager.\n4. Add the patch and ensure it is placed directly BELOW ${targetPlugin}.\n\nIf you use the MZ-Nexus Auto-Optimize Order tool, it will automatically snap this patch into the correct position for you!`;
 
         const zip = new JSZip();
         zip.file(`Nexus_Patch_${targetPlugin}.js`, patchContent);
