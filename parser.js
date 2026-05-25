@@ -239,6 +239,155 @@ function analyzeCodeBalance(code) {
     };
 }
 
+// =============================================================================
+// BLOCK NOTETAG DSL CONTENT VALIDATOR
+// =============================================================================
+// Scans the plain-text content of block notetags line by line. Catches:
+//
+//  1. MISSING VALUE  — a line ends with a keyword that always requires a
+//     following numeric ID (e.g. "Target Not State" with no number).
+//     Applied universally to all non-JS block notetag content.
+//
+//  2. POSSIBLE TYPO  — a word closely resembles a known RPG Maker / VisuStella
+//     DSL keyword (Levenshtein distance 1) but isn't an exact match.
+//     Applied only to known condition-block tag names to avoid false positives
+//     in action-sequence or custom-format blocks with their own DSL vocabularies.
+//
+// Adding a new condition block:  add its tag name (lower-case) to CONDITION_BLOCK_TAGS.
+// Adding a new value-requiring keyword: add it to REQUIRES_VALUE_WORDS.
+// =============================================================================
+
+// Keywords that MUST be followed by a numeric ID on the same line.
+// If a line ends with one of these words and nothing follows, a value is missing.
+const REQUIRES_VALUE_WORDS = new Set([
+    'state', 'element', 'switch', 'skill', 'weapon', 'armor',
+    'class', 'actor', 'enemy', 'buff', 'debuff', 'variable',
+    'type', 'troop', 'animation', 'region', 'terrain', 'map', 'event'
+]);
+
+// Block tag names (lower-case) whose content is a known condition DSL.
+// Only these get the typo check — avoids false positives in action-sequence
+// blocks or other plugin-specific DSLs with their own keyword vocabularies.
+const CONDITION_BLOCK_TAGS = new Set([
+    'all ai conditions',
+    'any ai conditions',
+    'all conditions',
+    'any conditions',
+    'trait conditions',
+    'skill conditions',
+    'party ai conditions'
+]);
+
+// Full vocabulary of known valid words in condition DSL contexts.
+// Used as the reference dictionary for the Levenshtein typo check.
+const KNOWN_CONDITION_KEYWORDS = new Set([
+    // Value-requiring keywords
+    'state', 'element', 'switch', 'skill', 'weapon', 'armor', 'class',
+    'actor', 'enemy', 'buff', 'debuff', 'variable', 'type', 'troop',
+    'animation', 'region', 'terrain',
+    // Complete / standalone conditions
+    'always', 'never', 'alive', 'dead', 'chance', 'physical', 'magical',
+    'certain', 'hit', 'evasion', 'critical', 'guard', 'substitution',
+    'regenerate', 'true', 'false',
+    // Stats
+    'hp', 'mp', 'tp', 'atk', 'def', 'mat', 'mdf', 'agi', 'luk', 'level',
+    // Qualifiers and structure words
+    'target', 'user', 'not', 'count', 'turn', 'rate', 'param', 'xparam', 'sparam'
+]);
+
+// Returns the Levenshtein edit distance between two strings.
+// Short-circuits at 99 if length difference alone exceeds the threshold.
+function editDistance(a, b) {
+    if (a === b) return 0;
+    if (Math.abs(a.length - b.length) > 2) return 99;
+    const dp = Array.from({ length: a.length + 1 }, (_, i) =>
+        Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
+    );
+    for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+            dp[i][j] = a[i - 1] === b[j - 1]
+                ? dp[i - 1][j - 1]
+                : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+        }
+    }
+    return dp[a.length][b.length];
+}
+
+// Returns the closest known keyword if within distance 1, otherwise null.
+// Distance threshold is intentionally tight (1) to avoid false positives on
+// plugin-specific terms that happen to resemble known keywords.
+function closestKnownKeyword(word) {
+    let best = null, bestDist = 99;
+    for (const kw of KNOWN_CONDITION_KEYWORDS) {
+        const d = editDistance(word, kw);
+        if (d < bestDist) { bestDist = d; best = kw; }
+    }
+    return bestDist === 1 ? best : null;
+}
+
+// Validates the plain-text content of a single block notetag.
+// tagNameLower must already be lower-cased.
+// Returns an array of { type, lineNum, text, message } issue objects.
+function validateBlockLines(tagNameLower, content) {
+    const issues = [];
+    const isConditionBlock = CONDITION_BLOCK_TAGS.has(tagNameLower);
+
+    content.split('\n').forEach((line, idx) => {
+        const trimmed = line.trim();
+        // Skip blank lines and comment lines
+        if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('*')) return;
+
+        // Tokenize: lower-case, split on whitespace, strip surrounding punctuation
+        const tokens = trimmed.toLowerCase()
+            .split(/\s+/)
+            .map(t => t.replace(/^[^a-z0-9]+|[^a-z0-9%]+$/g, ''))
+            .filter(Boolean);
+
+        if (tokens.length === 0) return;
+
+        const lastToken = tokens[tokens.length - 1];
+
+        // --- CHECK 1: Missing value ---
+        // If the last token is a value-requiring keyword (not a number),
+        // the required ID was never provided.
+        if (REQUIRES_VALUE_WORDS.has(lastToken)) {
+            issues.push({
+                type: 'missing_value',
+                lineNum: idx + 1,
+                text: trimmed,
+                message: `Line ends with <code>${lastToken}</code> but no value follows.
+                          A numeric ID is required (e.g. <code>${trimmed} 21</code>).`
+            });
+            return; // Don't also run typo check on the same line
+        }
+
+        // --- CHECK 2: Possible typo (condition blocks only) ---
+        // Compare every meaningful word against the known keyword dictionary.
+        // Only flag words of 4+ characters — shorter words have too many
+        // near-misses to report reliably.
+        if (!isConditionBlock) return;
+
+        const meaningfulTokens = tokens.filter(t => /^[a-z]{4,}$/.test(t));
+        for (const token of meaningfulTokens) {
+            if (KNOWN_CONDITION_KEYWORDS.has(token)) continue; // exact match
+            const closest = closestKnownKeyword(token);
+            if (closest) {
+                issues.push({
+                    type: 'possible_typo',
+                    lineNum: idx + 1,
+                    text: trimmed,
+                    message: `<code>${token}</code> is not a recognized condition keyword —
+                              did you mean <code>${closest}</code>?
+                              (full line: <em>${trimmed}</em>)`
+                });
+                break; // One typo report per line is enough
+            }
+        }
+    });
+
+    return issues;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('file-drop-target');
     const tabButtons = document.querySelectorAll('.tab-btn');
@@ -681,8 +830,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         // --- EMPTY PARAMETER CHECK ---
                         // Catches notetags of the form <TagName: > where a required value
                         // was left blank — e.g. <Multi-Element: > instead of <Multi-Element: 2>.
-                        // RPG Maker and plugins silently ignore or misread these, causing the
-                        // feature to simply not apply with no obvious error message in-game.
                         const emptyParamRegex = /<([^>]+?):\s*>/g;
                         let emptyMatch;
                         while ((emptyMatch = emptyParamRegex.exec(entry.note)) !== null) {
@@ -697,6 +844,51 @@ document.addEventListener('DOMContentLoaded', () => {
                                 suggestedFormula: null,
                                 suggestions: [],
                                 details: `The notetag <code>&lt;${tagName}: &gt;</code> has a colon indicating a required value, but the value is empty. The plugin will silently ignore this tag or produce unexpected behaviour. Add the missing value — e.g. <code>&lt;${tagName}: 2&gt;</code>.`
+                            });
+                        }
+
+                        // --- BLOCK NOTETAG LINE CONTENT VALIDATION ---
+                        // Scan the plain-text content of every block notetag for:
+                        //   - Lines ending with a value-requiring keyword (missing ID)
+                        //   - Possible typos in known condition-block DSL contexts
+                        // JS blocks are skipped here — they are handled by JS_NOTETAG_PATTERNS.
+                        // Display-text blocks are skipped — they contain text codes, not DSL.
+                        const TEXT_SUFFIX_RE = /\b(text|display|name|description|icon|label|title|message|string|format|caption|header|footer|prefix|suffix|popup|notify|alert|tooltip)$/i;
+                        const blockScanRegex = /<([^/][^>]*)>([\s\S]*?)<\/\1>/gi;
+                        let bsMatch;
+                        while ((bsMatch = blockScanRegex.exec(entry.note)) !== null) {
+                            const bTagName    = bsMatch[1].trim();
+                            const bTagLower   = bTagName.toLowerCase();
+                            const bContent    = bsMatch[2];
+
+                            // Skip JS blocks (already validated by JS_NOTETAG_PATTERNS)
+                            if (bTagLower.startsWith('js ') || bTagLower === 'js') continue;
+                            // Skip Custom JS blocks
+                            if (bTagLower.startsWith('custom ') && !TEXT_SUFFIX_RE.test(bTagLower)) {
+                                // Only skip if it's the kind that holds JS — the JS pattern
+                                // already covers these; we don't want to double-report typos
+                                // on what is actually code.
+                            }
+                            // Skip known display-text blocks
+                            if (TEXT_SUFFIX_RE.test(bTagLower)) continue;
+
+                            const lineIssues = validateBlockLines(bTagLower, bContent);
+                            lineIssues.forEach(issue => {
+                                databaseAlerts.push({
+                                    file: fileName,
+                                    item: name,
+                                    id: entry.id || index,
+                                    type: issue.type === 'missing_value'
+                                        ? 'Incomplete Notetag'
+                                        : 'Possible Typo',
+                                    issue: issue.type === 'missing_value'
+                                        ? `Missing value on line ${issue.lineNum} of &lt;${bTagName}&gt;`
+                                        : `Possible typo on line ${issue.lineNum} of &lt;${bTagName}&gt;`,
+                                    originalFormula: null,
+                                    suggestedFormula: null,
+                                    suggestions: [],
+                                    details: issue.message
+                                });
                             });
                         }
                     }
@@ -956,8 +1148,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const hardErrors  = databaseAlerts.filter(a => a.type !== 'Style Suggestion' && a.type !== 'Incomplete Notetag');
+        const hardErrors  = databaseAlerts.filter(a => !['Style Suggestion','Incomplete Notetag','Possible Typo'].includes(a.type));
         const warnings    = databaseAlerts.filter(a => a.type === 'Incomplete Notetag');
+        const typos       = databaseAlerts.filter(a => a.type === 'Possible Typo');
         const suggestions = databaseAlerts.filter(a => a.type === 'Style Suggestion');
 
         let html = '<div class="resolution-center">';
@@ -996,6 +1189,26 @@ document.addEventListener('DOMContentLoaded', () => {
                             <strong>Source:</strong> ${alert.file}
                         </p>
                         <div class="impact-text" style="border-left-color:#f59e0b;">${alert.details}</div>
+                    </div>`;
+            });
+        }
+
+        // --- Possible typos (purple) ---
+        if (typos.length > 0) {
+            const prevSectionCount = hardErrors.length + warnings.length;
+            html += `<h3 style="color:#a78bfa; margin-bottom:15px; margin-top:${prevSectionCount > 0 ? '28px' : '0'};">🔍 Possible Typos</h3>
+                     <p style="color:#71717a; font-size:0.85rem; margin-bottom:16px; margin-top:-10px;">
+                         These words closely resemble known RPG Maker / VisuStella keywords but are not exact matches. Verify each one — they may be intentional plugin-specific terms or genuine typos that would cause the condition to be silently ignored.
+                     </p>`;
+            typos.forEach(alert => {
+                html += `
+                    <div class="db-alert-card" style="border-left-color:#a78bfa; background:#150d2a;">
+                        <h4 style="color:#a78bfa;">🔍 ${alert.issue}</h4>
+                        <p style="color:#e4e4e7; margin-bottom:4px;">
+                            <strong>Target:</strong> ${alert.item} (ID: ${alert.id}) |
+                            <strong>Source:</strong> ${alert.file}
+                        </p>
+                        <div class="impact-text" style="border-left-color:#a78bfa;">${alert.details}</div>
                     </div>`;
             });
         }
