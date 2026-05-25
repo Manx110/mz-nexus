@@ -1,4 +1,4 @@
-// MZ-Nexus: Complete Advanced Core - Purged Auto-Shift Index & Fully Tuned DB Sandbox Engine
+// MZ-Nexus: Advanced Core Engine [v3.0] - MV Compatibility Updated & Auto-Shift Purged
 
 document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('file-drop-target');
@@ -14,6 +14,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let databaseFiles = {};
     let databaseAlerts = [];
+
+    // Force run the welcome viewport render immediately on page load
+    renderActiveView();
 
     // --- 1. TAB VIEWPORT MANAGER ---
     tabButtons.forEach(button => {
@@ -31,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="welcome-message">
                     <h3>System Diagnostics Ready</h3>
                     <p>Drag and drop your project files into the dashed <strong>sidebar drop zone</strong> on the left to begin.</p>
-                    <p style="font-size: 0.85rem; color: #71717a; margin-top: 10px;">Supported files: <code>plugins.js</code>, plugin script files (<code>.js</code>) [MV & MZ Compatible], and database files (<code>.json</code>) [MZ Optimization Tuned].</p>
+                    <p style="font-size: 0.85rem; color: #71717a; margin-top: 10px;">Supported files: <code>plugins.js</code>, plugin script files (<code>.js</code>) [MV & MZ Frameworks], and database files (<code>.json</code>).</p>
                 </div>`;
             return;
         }
@@ -42,14 +45,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- 2. DRAG & DROP FILE CAPTURE HANDLER ---
+    // --- 2. DRAG & DROP FILE HIGHLIGHT HANDLERS ---
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
-        dropZone.classList.add('drop-zone-active');
+        dropZone.classList.add('drop-zone-active'); // Turn blue
     });
 
     dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('drop-zone-active');
+        dropZone.classList.remove('drop-zone-active'); // Revert
     });
 
     dropZone.addEventListener('drop', async (e) => {
@@ -75,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         loadedPluginsCache = JSON.parse(text.substring(startArrayIdx, endArrayIdx + 1));
                     }
                 } catch (err) {
-                    console.error("Plugins.js parse error", err);
+                    console.error("Plugins.js configuration format exception", err);
                 }
             } else if (file.name.endsWith('.json')) {
                 hasDatabaseFiles = true;
@@ -114,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return null; 
     }
 
-    // --- 4. THE SOURCE CODE DEEP CHECKER & RULE PARSER ---
+    // --- 4. ENGINE LAYOUT DIAGNOSTIC SCANNER ---
     async function runDeepProjectScan() {
         const listStack = document.getElementById('sortable-plugin-stack');
         listStack.innerHTML = '';
@@ -167,11 +170,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (plugin.status && scriptFileStorage[fileName]) {
                 const codeText = await scriptFileStorage[fileName].text();
+                
+                // Rule A: Native MZ Base Tag Check
                 const baseTagRegex = /@base\s+([A-Za-z0-9_]+)/g;
                 let baseMatch;
                 while ((baseMatch = baseTagRegex.exec(codeText)) !== null) {
                     const depName = baseMatch[1];
                     if (!pluginDependenciesMap[plugin.name].includes(depName)) {
+                        pluginDependenciesMap[plugin.name].push(depName);
+                    }
+                }
+
+                // Rule B: Legacy MV Required/Dependency String Extraction
+                const mvRequiredRegex = /@required\s+([A-Za-z0-9_]+)|@depend\s+([A-Za-z0-9_]+)/g;
+                let mvMatch;
+                while ((mvMatch = mvRequiredRegex.exec(codeText)) !== null) {
+                    const depName = mvMatch[1] || mvMatch[2];
+                    if (depName && !pluginDependenciesMap[plugin.name].includes(depName)) {
                         pluginDependenciesMap[plugin.name].push(depName);
                     }
                 }
@@ -343,7 +358,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- 6. INTERACTIVE RESOLUTION VIEW CONTROL (COMPLETELY PURGED AUTO-SHIFT) ---
+    // --- 6. VIEWPORT RENDERER (AUTO-SHIFT ENTIRELY PURGED) ---
     function renderResolutionCenter() {
         if (loadedPluginsCache.length > 0 && Object.keys(conflictMatrixCache).length === 0 && architecturalViolations.length === 0) {
             viewPanel.innerHTML = `<p class="success-text" style="color: #34d399; font-weight: bold;">🟢 Structural Evaluation Complete: Load paths are correctly aligned and active patches have successfully bridged execution logic.</p>`;
@@ -353,19 +368,19 @@ document.addEventListener('DOMContentLoaded', () => {
         let html = '<div class="resolution-center">';
         architecturalViolations.forEach((violation) => {
             html += `
-                <div class="alert-card" style="border-left: 4px solid #f59e0b; background: #1c1917; padding: 20px; border-radius: 8px; margin-bottom: 15px;">
-                    <h4 style="color: #f59e0b; margin-top: 0;">⚠️ Sequence Violation: Structural Tier Placement Mismatch</h4>
+                <div class="alert-card" style="border-left: 4px solid #f59e0b;">
+                    <h4 style="color: #f59e0b;">⚠️ Sequence Violation: Structural Tier Placement Mismatch</h4>
                     <p>The component <strong>${violation.badPlugin}</strong> (Tier ${violation.badTier}) is loading <strong>above</strong> foundational component <strong>${violation.baselinePlugin}</strong> (Tier ${violation.baselineTier}).</p>
-                    <p class="impact-text">Impact: Reversing internal vendor architecture frameworks causes runtime memory access failures inside engine instances.</p>
+                    <p class="impact-text" style="border-left-color: #f59e0b;">Impact: Reversing internal vendor architecture frameworks causes runtime memory access failures inside engine instances.</p>
                 </div>`;
         });
 
         for (const [pluginName, details] of Object.entries(conflictMatrixCache)) {
             html += `
-                <div class="alert-card" style="border-left: 4px solid #ef4444; background: #18181b; padding: 20px; border-radius: 8px; margin-bottom: 15px;">
-                    <h4 style="color: #ef4444; margin-top: 0;">⚠️ Critical Function Overwrite Verified: <code>${details.method}</code></h4>
+                <div class="alert-card" style="border-left: 4px solid #ef4444;">
+                    <h4 style="color: #ef4444;">⚠️ Critical Function Overwrite Verified: <code>${details.method}</code></h4>
                     <p>The code inside <strong>${pluginName}.js</strong> explicitly replaces this core routine without an internal backward-compatible alias loop.</p>
-                    <p class="impact-text">Impact Statement: ${details.impact}</p>
+                    <p class="impact-text" style="border-left-color: #ef4444;">Impact Statement: ${details.impact}</p>
                     <div class="card-actions" style="margin-top: 15px;">
                         <button class="btn-premium" style="padding: 8px 16px; background: #3b82f6; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;" onclick="triggerPremiumCheckout('${pluginName}', '${details.method}')">Generate Compatibility Patch</button>
                     </div>
@@ -398,7 +413,7 @@ document.addEventListener('DOMContentLoaded', () => {
         databaseAlerts.forEach(alert => {
             html += `
                 <div class="alert-card" style="border-left: 4px solid #ef4444; background: #1c1917; padding: 20px; border-radius: 8px; margin-bottom: 15px;">
-                    <h4 style="color: #ef4444; margin-top:0;">🚨 ${alert.type}: ${alert.issue}</h4>
+                    <h4 style="color: #ef4444;">🚨 ${alert.type}: ${alert.issue}</h4>
                     <p style="color:#e4e4e7; margin-bottom:4px;"><strong>Target:</strong> ${alert.item} (ID: ${alert.id}) | <strong>Source:</strong> ${alert.file}</p>
                     <p class="impact-text" style="border-left-color: #ef4444;">${alert.details}</p>
                 </div>`;
@@ -495,7 +510,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        alert(`🚀 Universal Tier Layout Matrix Alignment Complete!\nAll system tiers sorted and patches snapped securely to their targets.`);
+        alert(`🚀 Universal Layout Matrix Alignment Complete!\nAll structural component tiers sorted and patches snapped securely to targets.`);
         await runDeepProjectScan();
     });
 
