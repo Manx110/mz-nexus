@@ -62,16 +62,19 @@
         <div id="active-view-panel" class="view-panel"></div>
 
         <div class="bottom-bar">
-            <button id="btn-optimize" class="btn btn-secondary">Auto-Optimize Order</button>
-            <button id="btn-export" class="btn btn-primary">Export Updated plugins.js</button>
-        </div>
-
-        <div class="footer-links">
-            Found an anomaly?
-            <a href="https://github.com/Manx110/mz-nexus/issues" target="_blank" class="link-issue">Report it on GitHub</a>
-            <span class="divider">|</span>
-            Support the tool:
-            <a href="https://ko-fi.com/nexusenginetools" target="_blank" class="link-coffee">☕ Buy me a coffee</a>
+            <!-- Footer links now live inside the bottom bar so they can never overlap content -->
+            <div class="footer-links">
+                Found an anomaly?
+                <a href="https://github.com/Manx110/mz-nexus/issues" target="_blank" class="link-issue">Report it on GitHub</a>
+                <span class="divider">|</span>
+                Support the tool:
+                <a href="https://ko-fi.com/nexusenginetools" target="_blank" class="link-coffee">☕ Buy me a coffee</a>
+            </div>
+            <div class="bottom-bar-actions">
+                <button id="btn-reset"    class="btn btn-reset"    disabled>Reset</button>
+                <button id="btn-optimize" class="btn btn-secondary" disabled>Auto-Optimize Order</button>
+                <button id="btn-export"   class="btn btn-primary"   disabled>Export Updated plugins.js</button>
+            </div>
         </div>
 
     </div>

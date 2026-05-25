@@ -403,6 +403,23 @@ document.addEventListener('DOMContentLoaded', () => {
     let databaseFiles = {};
     let databaseAlerts = [];
 
+    // Button refs — cached once so updateButtonStates() doesn't query the DOM repeatedly
+    const btnReset    = document.getElementById('btn-reset');
+    const btnOptimize = document.getElementById('btn-optimize');
+    const btnExport   = document.getElementById('btn-export');
+
+    // Enable / disable action buttons based on whether any data is loaded.
+    // Called after every drop, scan, and reset so the UI always reflects state.
+    function updateButtonStates() {
+        const hasPlugins  = loadedPluginsCache.length > 0;
+        const hasDatabase = Object.keys(databaseFiles).length > 0;
+        const hasAnyData  = hasPlugins || hasDatabase;
+
+        btnReset.disabled    = !hasAnyData;
+        btnOptimize.disabled = !hasPlugins;   // only meaningful with a plugin list
+        btnExport.disabled   = !hasPlugins;   // only meaningful with a plugin list
+    }
+
     // Safe view execution delay to guarantee DOM rendering settles on first load
     setTimeout(() => { renderActiveView(); }, 50);
 
@@ -517,6 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
             switchTabUI('database');
         }
 
+        updateButtonStates();
         renderActiveView();
     });
 
@@ -1290,7 +1308,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- 8. AUTO-OPTIMIZER WITH TOPOLOGICAL SORT ---
-    document.getElementById('btn-optimize').addEventListener('click', async () => {
+    btnOptimize.addEventListener('click', async () => {
         if (loadedPluginsCache.length === 0) {
             alert('No active configuration array found.');
             return;
@@ -1376,14 +1394,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
         await runDeepProjectScan();
 
-        // FIX: Re-render the main panel after optimizing so the user immediately sees
-        // the updated conflict state. Previously the panel stayed stale until the user
-        // manually clicked a tab.
+        // Re-render the main panel so the user immediately sees the updated conflict state.
+        updateButtonStates();
         renderActiveView();
     });
 
-    // --- 9. EXPORT ---
-    document.getElementById('btn-export').addEventListener('click', () => {
+    // --- 9. RESET ---
+    btnReset.addEventListener('click', () => {
+        if (!confirm('Clear all loaded files and start over?')) return;
+
+        // Wipe all state back to initial values
+        loadedPluginsCache    = [];
+        scriptFileStorage     = {};
+        conflictMatrixCache   = {};
+        pluginDependenciesMap = {};
+        architecturalViolations = [];
+        databaseFiles         = {};
+        databaseAlerts        = [];
+
+        // Reset sidebar plugin list
+        const listStack = document.getElementById('sortable-plugin-stack');
+        listStack.innerHTML = '<li class="plugin-list-placeholder">Sandbox Waiting for Upload...</li>';
+
+        // Reset counters
+        document.getElementById('total-count').innerText   = '0';
+        document.getElementById('conflict-count').innerText = '0';
+
+        // Reset tabs to default
+        currentTab = 'resolution';
+        switchTabUI('resolution');
+
+        updateButtonStates();
+        renderActiveView();
+    });
+
+    // --- 10. EXPORT ---
+    btnExport.addEventListener('click', () => {
         if (loadedPluginsCache.length === 0) return;
         const outputString = `var $plugins =\n${JSON.stringify(loadedPluginsCache, null, 2)};\n`;
         const dataBlob = new Blob([outputString], { type: 'text/javascript' });

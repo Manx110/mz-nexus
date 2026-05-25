@@ -191,7 +191,7 @@ body, html {
     padding: 30px;
     flex-grow: 1;
     overflow-y: auto;
-    padding-bottom: 120px;
+    padding-bottom: 90px;
 }
 
 /* Welcome Message */
@@ -295,17 +295,25 @@ body, html {
 
 /* Bottom Bar */
 .bottom-bar {
-    padding: 20px 30px;
+    padding: 0 30px;
     border-top: 1px solid #2a2a30;
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
     gap: 15px;
     background: #0e0e11;
     position: fixed;
     bottom: 0;
     right: 0;
     width: calc(100% - 320px);
+    height: 70px;
     z-index: 100;
+}
+
+.bottom-bar-actions {
+    display: flex;
+    gap: 15px;
+    align-items: center;
 }
 
 .btn {
@@ -338,13 +346,28 @@ body, html {
     background: #2563eb;
 }
 
+.btn:disabled,
+.btn[disabled] {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Reset button — danger-adjacent but understated so it doesn't dominate */
+.btn-reset {
+    background: transparent;
+    border-color: #7f1d1d;
+    color: #f87171;
+}
+
+.btn-reset:hover {
+    background: #450a0a;
+}
+
 .footer-links {
-    position: fixed;
-    bottom: 28px;
-    left: 350px;
-    font-size: 0.85rem;
-    color: #e4e4e7;
-    z-index: 110;
+    font-size: 0.82rem;
+    color: #71717a;
+    white-space: nowrap;
 }
 
 .footer-links a.link-issue {
@@ -360,7 +383,7 @@ body, html {
 }
 
 .footer-links .divider {
-    margin: 0 12px;
+    margin: 0 10px;
     color: #3f3f46;
 }
 
