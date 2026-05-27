@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Script Extractor // MZ-Nexus Suite</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <div class="sidebar">
+        <div id="folder-drop-target" class="drop-zone">
+            Drag &amp; Drop your <code>/data</code> folder here<br>
+            <span style="font-size: 0.75rem; display: block; margin-top: 10px;">or</span>
+            <label for="folder-input" style="cursor: pointer; color: #3b82f6; text-decoration: underline; font-size: 0.8rem;">click to select folder</label>
+            <input type="file" id="folder-input" webkitdirectory directory multiple style="display: none;">
+            <div style="margin: 12px 0 4px 0; font-size: 0.8rem; color: #71717a;">— or —</div>
+            <button id="btn-load-extractor-demo" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; margin-top: 4px; width: 100%; cursor: pointer;">⚡ Load Demo Sandbox</button>
+        </div>
+
+        <div class="sidebar-label">Extraction Summary</div>
+        <ul id="extraction-summary-list" class="plugin-list">
+            <li class="plugin-list-placeholder">
+                Awaiting /data folder...
+            </li>
+        </ul>
+    </div>
+
+    <div class="main-content">
+
+        <div class="top-bar">
+            <div class="top-bar-brand">
+                MZ-Nexus <span>// Global Script Extractor</span>
+                <span style="color:#52525b; font-size:0.75rem; font-weight:normal; margin-left:16px;">by <a href="https://github.com/Manx110" target="_blank" style="color:#52525b; text-decoration:none;">Manx110</a></span>
+            </div>
+
+            <div style="margin-left: auto; margin-right: 24px; display: flex; gap: 12px;">
+                <a href="index.html" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; text-decoration: none; opacity: 0.7; display: inline-flex; align-items: center;">⚙️ Optimizer Suite</a>
+                <a href="extractor.html" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; background: #1a1a1e; border-color: #34d399; color: #34d399; text-decoration: none; display: inline-flex; align-items: center;">📜 Script Extractor</a>
+            </div>
+
+            <div class="top-bar-stats">
+                <div class="stat-badge">
+                    Maps Scanned: <span id="maps-count" style="color: #e4e4e7; font-weight: bold;">0</span>
+                </div>
+                <div class="stat-badge status-alert" style="background: #1a1a1e; border-color: #2a2a30; color: #a1a1aa;">
+                    Dialogue Lines: <span id="lines-count" style="font-weight: bold; color: #34d399;">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="active-view-panel" class="view-panel">
+            <div class="welcome-message">
+                <h3>Script Extractor Ready</h3>
+                <p>Drag and drop your entire MZ <code>/data</code> folder into the sidebar to parse all dialogue and choices.</p>
+                <p style="font-size: 0.85rem; color: #71717a; margin-top: 10px;">Supported files: <code>Map*.json</code> and <code>CommonEvents.json</code>.</p>
+            </div>
+        </div>
+
+        <div class="bottom-bar">
+            <div class="footer-links">
+                Found an anomaly?
+                <a href="https://github.com/Manx110/mz-nexus/issues" target="_blank" class="link-issue">Report it on GitHub</a>
+                <span class="divider">|</span>
+                Support the tool:
+                <a href="https://ko-fi.com/nexusenginetools" target="_blank" class="link-coffee">☕ Leave a tip</a>
+            </div>
+            <div class="bottom-bar-actions">
+                <button id="btn-reset" class="btn btn-reset" disabled>Reset</button>
+                
+                <select id="export-filter" class="btn btn-secondary" style="background: #1a1a1e; cursor: pointer;" disabled>
+                    <option value="all">View/Export All Text</option>
+                    <option value="dialogue">View/Export Dialogue Only</option>
+                </select>
+                
+                <button id="btn-export-csv" class="btn btn-primary" disabled>Export Full Script to CSV</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="script-parser.js"></script>
+    <script src="extractor-ui.js"></script>
+</body>
+</html>

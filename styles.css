@@ -1,4 +1,10 @@
-/* Core Styling Matrix for MZ-Nexus - Scroll Layout Fixed */
+/**
+ * MZ-Nexus Optimizer Suite — styles.css
+ * Copyright (c) 2026 Manx110
+ * https://github.com/Manx110/mz-nexus
+ * Licensed under CC BY-NC 4.0 — https://creativecommons.org/licenses/by-nc/4.0/
+ */
+
 * {
     box-sizing: border-box;
     margin: 0;
@@ -522,4 +528,69 @@ code {
     font-family: 'Consolas', monospace;
     font-size: 0.85rem;
     color: #f87171;
+}
+
+/* Script Extractor Table Styles */
+.script-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    background: #121214;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.script-table th {
+    background: #1a1a1e;
+    color: #71717a;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 12px;
+    text-align: left;
+    border-bottom: 2px solid #2a2a30;
+}
+
+.script-table td {
+    padding: 12px;
+    border-bottom: 1px solid #1f1f24;
+    vertical-align: top;
+    line-height: 1.5;
+}
+
+.script-table tr:last-child td {
+    border-bottom: none;
+}
+
+.script-table tr:hover {
+    background: #16161a;
+}
+
+/* Economy Heatmap Inline Inputs */
+.inline-input {
+    background: #0e0e11;
+    border: 1px solid #3f3f46;
+    color: #e4e4e7;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    width: 120px;
+    transition: border-color 0.2s ease;
+}
+
+.inline-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    background: #121214;
+}
+
+/* Remove default browser spinner arrows on number inputs */
+.inline-input::-webkit-outer-spin-button,
+.inline-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.inline-input[type=number] {
+    -moz-appearance: textfield;
 }
