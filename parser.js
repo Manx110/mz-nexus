@@ -891,7 +891,22 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if (alreadyReported.has(code)) return;
 
                                 try {
-                                    new Function(...pattern.args, code);
+                                    // Filter out any injected arg names that the code declares
+                                    // itself (const/let/var/function). Without this, a notetag
+                                    // that legitimately writes `const a = ...` would collide with
+                                    // our injected `a` parameter and throw a false
+                                    // "Identifier 'a' has already been declared" syntax error.
+                                    // The engine variables a/b/v/etc. are only predefined for SOME
+                                    // notetag types, so user code redeclaring them is valid.
+                                    const declaredIdents = new Set();
+                                    const declRegex = /\b(?:const|let|var|function)\s+([A-Za-z_$][\w$]*)/g;
+                                    let dMatch;
+                                    while ((dMatch = declRegex.exec(code)) !== null) {
+                                        declaredIdents.add(dMatch[1]);
+                                    }
+                                    const safeArgs = pattern.args.filter(arg => !declaredIdents.has(arg));
+
+                                    new Function(...safeArgs, code);
                                 } catch (err) {
                                     if (!(err instanceof SyntaxError)) return;
 
@@ -1116,144 +1131,71 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
 
                         // --- EXECUTION VALIDATION PASS ---
-                        // Reproduces RPG Maker MZ's Game_Action.prototype.evalDamageFormula
-                        // as faithfully as possible:
-                        //   const value = Math.max(eval(item.damage.formula), 0) * sign;
-                        //   return isNaN(value) ? 0 : value;   (wrapped in try/catch -> 0)
-                        //
-                        // Key fidelity points:
-                        //  - Uses eval() so MULTI-STATEMENT formulas (with semicolons) return
-                        //    their LAST expression, exactly like MZ. A `return ${formula}` wrapper
-                        //    would silently drop everything after the first semicolon.
-                        //  - Provides MZ's runtime extensions (Math.randomInt, Number.clamp/mod)
-                        //    so valid formulas using them are NOT flagged as broken.
-                        //  - In MZ a thrown error or NaN does not crash — it silently deals
-                        //    0 damage. The error wording reflects that real-world impact.
                         try {
-                            // MZ runtime extensions from rmmz_core.js, scoped to this sandbox only.
-                            // Saved/restored so we never leak them into the tool's own runtime.
-                            const _hadRandomInt = Object.prototype.hasOwnProperty.call(Math, 'randomInt');
-                            const _origRandomInt = Math.randomInt;
-                            const _hadClamp = Object.prototype.hasOwnProperty.call(Number.prototype, 'clamp');
-                            const _origClamp = Number.prototype.clamp;
-                            const _hadMod = Object.prototype.hasOwnProperty.call(Number.prototype, 'mod');
-                            const _origMod = Number.prototype.mod;
+                            const testFunc = new Function('a', 'b', 'v', 'sign', '$gameVariables', '$gameSwitches', `
+                                let dmg = 0;
+                                return ${originalFormula};
+                            `);
 
-                            Math.randomInt = function(max) { return Math.floor(Math.random() * Math.max(1, max)); };
-                            // eslint-disable-next-line no-extend-native
-                            Number.prototype.clamp = function(min, max) { return Math.min(Math.max(this, min), max); };
-                            // eslint-disable-next-line no-extend-native
-                            Number.prototype.mod = function(n) { return ((this % n) + n) % n; };
-
-                            // Shared stat mock used for BOTH subject (a) and target (b)
                             const baseStats = {
                                 hp: 100, mp: 50, tp: 10,
-                                mhp: 100, mmp: 50, mtp: 100,
+                                mhp: 100, mmp: 50,
                                 atk: 20, def: 10, mat: 20, mdf: 10, agi: 15, luk: 15,
                                 level: 5,
-
+                                
                                 hit: 0.95, eva: 0.05, cri: 0.04, cev: 0, mev: 0, mrf: 0, cnt: 0, hrg: 0, mrg: 0, trg: 0,
                                 tgr: 1, grd: 1, rec: 1, pha: 1, mcr: 1, tcr: 1, pdr: 1, mdr: 1, fdr: 1, exr: 1,
 
                                 param:   function() { return 20; },
                                 xparam:  function() { return 0.1; },
                                 sparam:  function() { return 1.0; },
-                                paramBuffRate: function() { return 1.0; },
-
+                                paramBuffRate: function() { return 1.0; }, 
+                                
                                 hpRate:  function() { return 1; },
                                 mpRate:  function() { return 1; },
                                 tpRate:  function() { return 1; },
-                                maxTp:   function() { return 100; },
-
+                                
                                 isStateAffected:  function() { return false; },
                                 isBuffAffected:   function() { return false; },
                                 isDebuffAffected: function() { return false; },
-                                isStateResist:    function() { return false; },
+                                isStateResist:    function() { return false; }, 
                                 isDead:   function() { return false; },
                                 isAlive:  function() { return true; },
                                 isEnemy:  function() { return false; },
                                 isActor:  function() { return true; },
-
+                                
                                 elementRate: function() { return 1; },
                                 stateRate:   function() { return 1; },
                                 addState:    function() {},
                                 removeState: function() {},
                                 skills:   function() { return []; },
                                 hasSkill: function() { return false; },
-                                states:   function() { return []; },
-
-                                // Action result + unit accessors used in advanced formulas
-                                result:        function() { return { critical: false, hpDamage: 0, mpDamage: 0, isHit: function() { return true; } }; },
-                                friendsUnit:   function() { return { members: function() { return []; }, aliveMembers: function() { return []; }, deadMembers: function() { return []; } }; },
-                                opponentsUnit: function() { return { members: function() { return []; }, aliveMembers: function() { return []; }, deadMembers: function() { return []; } }; },
-
-                                // Actor/enemy identity helpers (return harmless stand-ins)
-                                actorId:      function() { return 1; },
-                                enemyId:      function() { return 1; },
-                                currentClass: function() { return { id: 1, name: '' }; },
-                                attackElements: function() { return []; },
                             };
 
-                            // v = $gameVariables._data in MZ — an array-like read by index.
-                            // Proxy returns 5 for any unread index so formulas don't NaN on
-                            // a variable we can't know the value of.
                             const dummyV = new Proxy({}, {
                                 get: (t, p) => t[p] !== undefined ? t[p] : 5,
                                 set: (t, p, val) => { t[p] = val; return true; }
                             });
 
-                            const dummyGameVariables = { value: () => 5, setValue: () => {}, _data: dummyV };
+                            const dummyGameVariables = { value: () => 5, setValue: () => {} };
                             const dummyGameSwitches  = { value: () => false, setValue: () => {} };
 
-                            // Global game objects referenced by some formulas. Minimal stand-ins
-                            // so a formula reading them doesn't throw a false positive.
-                            const $gameParty   = { gold: () => 1000, size: () => 4, members: () => [], aliveMembers: () => [], battleMembers: () => [] };
-                            const $gameTroop   = { members: () => [], aliveMembers: () => [], turnCount: () => 1, size: () => 1 };
-                            const $gameActors  = { actor: () => baseStats };
-                            const $gameSystem  = { battleCount: () => 1, saveCount: () => 0 };
-                            const $gameMap     = { mapId: () => 1 };
-                            const $gamePlayer  = { };
-                            const BattleManager = { _turnCount: 1 };
+                            const result = testFunc(baseStats, baseStats, dummyV, 1, dummyGameVariables, dummyGameSwitches);
 
-                            // Faithful eval-based evaluation (matches MZ). The formula string is
-                            // injected as data via the args so multi-statement formulas evaluate
-                            // exactly as the engine would.
-                            const testFunc = new Function(
-                                'a', 'b', 'v', 'sign',
-                                '$gameVariables', '$gameSwitches', '$gameParty', '$gameTroop',
-                                '$gameActors', '$gameSystem', '$gameMap', '$gamePlayer', 'BattleManager',
-                                'FORMULA_SRC',
-                                'return eval(FORMULA_SRC);'
-                            );
-
-                            let result;
-                            try {
-                                result = testFunc(
-                                    baseStats, baseStats, dummyV, 1,
-                                    dummyGameVariables, dummyGameSwitches, $gameParty, $gameTroop,
-                                    $gameActors, $gameSystem, $gameMap, $gamePlayer, BattleManager,
-                                    originalFormula
-                                );
-
-                                if (typeof result === 'number') {
-                                    if (isNaN(result)) {
-                                        throw new Error('Formula evaluates to NaN (Not-a-Number).');
-                                    }
-                                    if (!isFinite(result)) {
-                                        throw new Error('Formula evaluates to Infinity (usually caused by dividing by zero).');
-                                    }
+                            if (typeof result === 'number') {
+                                if (isNaN(result)) {
+                                    throw new Error('Execution evaluated to NaN (Not-a-Number).');
                                 }
-                            } finally {
-                                // Always restore Math/Number to their original state
-                                if (_hadRandomInt) { Math.randomInt = _origRandomInt; } else { delete Math.randomInt; }
-                                if (_hadClamp) { Number.prototype.clamp = _origClamp; } else { delete Number.prototype.clamp; }
-                                if (_hadMod) { Number.prototype.mod = _origMod; } else { delete Number.prototype.mod; }
+                                if (!isFinite(result)) {
+                                    throw new Error('Execution evaluated to Infinity. This is usually caused by dividing by zero.');
+                                }
                             }
                         } catch (err) {
                             let detailMsg = err.message;
 
+                            // Make the error message more helpful for common math mistakes
                             if (originalFormula.includes('Math.sqrt') || originalFormula.includes('Math.log')) {
-                                detailMsg += ' (Hint: Math.sqrt or Math.log of a negative number returns NaN — check whether a stat subtraction could go negative.)';
+                                detailMsg += " (Hint: Math.sqrt or Math.log of a negative number results in NaN. Check if your stat subtraction could result in a negative value.)";
                             }
 
                             databaseAlerts.push({
@@ -1265,7 +1207,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 originalFormula,
                                 suggestedFormula: null,
                                 suggestions: [],
-                                details: `Formula test failure: "${detailMsg}". In-game this will not crash — RPG Maker MZ catches the error and silently deals <strong>0 damage</strong>, so the bug is easy to miss. Most often this is a misspelled stat reference (e.g. <code>a.atkk</code> instead of <code>a.atk</code>) or an invalid math domain.`
+                                details: `Engine test failure: "${detailMsg}". This usually means a misspelled stat reference (e.g. <code>a.atkk</code> instead of <code>a.atk</code>) or an invalid math domain.`
                             });
                         }
                     }
