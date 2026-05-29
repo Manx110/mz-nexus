@@ -65,6 +65,8 @@
                 <span class="divider">|</span>
                 Support the tool:
                 <a href="https://ko-fi.com/nexusenginetools" target="_blank" class="link-coffee">☕ Buy me a coffee</a>
+                <span style="color: #52525b; margin: 0 15px;">|</span> 
+                <a href="#" onclick="showChangelog(event)" style="color: #a1a1aa; text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#a1a1aa'">v1.2 Beta - View Updates</a>
             </div>
             <div class="bottom-bar-actions">
                 <button id="btn-reset"    class="btn btn-reset"    disabled>Reset</button>
@@ -74,7 +76,33 @@
         </div>
 
     </div>
+    <div id="changelog-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center;">
+        <div style="background: #120d0d; border: 1px solid #3f2c2c; padding: 30px; border-radius: 8px; max-width: 600px; width: 90%; color: #e4e4e7; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+            <h2 style="margin-top: 0; color: #3b82f6; border-bottom: 1px solid #27272a; padding-bottom: 10px;">MZ-Nexus Changelog</h2>
+            
+            <div style="max-height: 400px; overflow-y: auto; margin-bottom: 20px; padding-right: 10px;">
+                
+                <h4 style="color: #10b981; margin-bottom: 5px;">v1.2.0 (Latest Update)</h4>
+                <ul style="font-size: 0.9rem; color: #a1a1aa; margin-top: 0; line-height: 1.5;">
+                    <li><strong>Added:</strong> Safe Math Evaluation. The sandbox now detects <code>Infinity</code> calculations and literal division by zero (<code>/ 0</code>) to prevent in-game variance <code>NaN</code> glitches.</li>
+                    <li><strong>Added:</strong> Static Regex scanning for mathematical paradoxes in custom JS Notetags.</li>
+                    <li><strong>Added:</strong> Expanded sandbox dataset natively supporting RPG Maker S-Params, X-Params, and global variable mock objects.</li>
+                    <li><strong>Fixed:</strong> False-positive self-conflicts for plugins utilizing MV/MZ platform conditional logic gates.</li>
+                    <li><strong>Fixed:</strong> Mathematical inequality symbols (<code>&lt;</code>, <code>&gt;</code>) inside notetags incorrectly triggering unbalanced bracket alerts.</li>
+                </ul>
 
+                <h4 style="color: #52525b; margin-bottom: 5px; margin-top: 25px;">v1.1.0 (Initial Beta)</h4>
+                <ul style="font-size: 0.9rem; color: #52525b; margin-top: 0; line-height: 1.5;">
+                    <li>Tool launched. Active Plugin Diagnostics, Conflict Map, and Database Audit operational.</li>
+                </ul>
+
+            </div>
+            
+            <div style="text-align: right; border-top: 1px solid #27272a; padding-top: 15px;">
+                <button onclick="document.getElementById('changelog-modal').style.display='none'" style="background: #27272a; color: white; border: 1px solid #3f3f46; padding: 8px 16px; border-radius: 4px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#3f3f46'" onmouseout="this.style.background='#27272a'">Close</button>
+            </div>
+        </div>
+    </div>
     <script src="parser.js"></script>
 </body>
 </html>

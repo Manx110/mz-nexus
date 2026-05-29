@@ -1232,6 +1232,22 @@ document.addEventListener('DOMContentLoaded', () => {
                             });
                         }
 
+                        // --- STATIC LOGIC CHECKS (NOTETAGS) ---
+                        // Look for explicit division by literal zero (e.g., / 0, /0) but ignore decimals like / 0.5
+                        if (/\/\s*0(?!\.\d)/.test(entry.note)) {
+                            databaseAlerts.push({
+                                file: fileName,
+                                item: name,
+                                id: entry.id || index,
+                                type: 'Logic Warning',
+                                issue: 'Division by Zero in Notetag',
+                                originalFormula: null,
+                                suggestedFormula: null,
+                                suggestions: [],
+                                details: `A literal division by zero (<code>/ 0</code>) was detected in the note box. When executed by a plugin in-game, this evaluates to Infinity. If damage variance is applied, it will corrupt the calculation and result in NaN (0 damage).`
+                            });
+                        }
+
                         // --- EMPTY PARAMETER CHECK ---
                         // Catches notetags of the form <TagName: > where a required value
                         // was left blank — e.g. <Multi-Element: > instead of <Multi-Element: 2>.
@@ -1413,8 +1429,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             const result = testFunc(baseStats, baseStats, dummyV, 1, dummyGameVariables, dummyGameSwitches);
 
-                            if (typeof result === 'number' && isNaN(result)) {
-                                throw new Error('Execution evaluated to NaN (Not-a-Number).');
+                            if (typeof result === 'number') {
+                                if (isNaN(result)) {
+                                    throw new Error('Execution evaluated to NaN (Not-a-Number).');
+                                }
+                                if (!isFinite(result)) {
+                                    throw new Error('Execution evaluated to Infinity. This is usually caused by dividing by zero.');
+                                }
                             }
                         } catch (err) {
                             databaseAlerts.push({
@@ -1850,4 +1871,10 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadLink.click();
         document.body.removeChild(downloadLink);
     });
+
+    // --- UI TOGGLES ---
+    window.showChangelog = function(e) {
+        if(e) e.preventDefault();
+        document.getElementById('changelog-modal').style.display = 'flex';
+    };
 });
