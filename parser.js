@@ -437,46 +437,48 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span>Injecting Sandbox Architecture...</span>
                 </div>`;
 
-            // 1. Simulate a broken plugins.js load order
+            // 1. Simulate a broken plugins.js load order (Added Pathfinding test)
             loadedPluginsCache = [
-                { name: "MK_RNGMaps_Core", status: true, description: "Map generator core." }, // Intentionally placed above VisuStella to trigger the amber warning
+                { name: "MK_RNGMaps_Core", status: true, description: "Map generator core." },
                 { name: "VisuMZ_0_CoreEngine", status: true, description: "<VisuStella MZ>\nCore Engine." },
                 { name: "VisuMZ_1_BattleCore", status: true, description: "<VisuStella MZ>\nBattle Core. [Tier 1]" },
-                { name: "Rogue_Combat_Overwrite", status: true, description: "A poorly written combat plugin." }
+                { name: "Rogue_Combat_Overwrite", status: true, description: "A poorly written combat plugin." },
+                { name: "Improved_Pathfinding", status: true, description: "Contains MV/MZ platform conditional methods." }
             ];
 
             // Helper to simulate file text extraction
             const mockTextFile = (content) => ({ text: async () => content });
 
-            // 2. Simulate the JS source files to trigger the code scanners
+            // 2. Simulate the JS source files (Added self-conflict double method)
             scriptFileStorage = {
                 "MK_RNGMaps_Core.js": mockTextFile("var MK = MK || {};\nScene_Map.prototype.start = function() { /* alias */ .call(this); };"),
                 "VisuMZ_0_CoreEngine.js": mockTextFile("var VisuMZ = VisuMZ || {};\nScene_Map.prototype.start = function() { /* base */ };"),
                 "VisuMZ_1_BattleCore.js": mockTextFile("var VisuMZ = VisuMZ || {};\n@base VisuMZ_0_CoreEngine\nScene_Battle.prototype.start = function() { /* alias */ .call(this); };"),
-                "Rogue_Combat_Overwrite.js": mockTextFile("Scene_Battle.prototype.start = function() { /* CRITICAL OVERWRITE - NO ALIAS */ };")
+                "Rogue_Combat_Overwrite.js": mockTextFile("Scene_Battle.prototype.start = function() { /* CRITICAL OVERWRITE - NO ALIAS */ };"),
+                "Improved_Pathfinding.js": mockTextFile("if (Utils.isMz()) {\n Game_Character.prototype.findDirectionTo = function() { .call(this); };\n} else {\n Game_Character.prototype.findDirectionTo = function() { .call(this); };\n}")
             };
 
-            // 3. Simulate Database JSON to trigger the QA engine
+            // 3. Simulate Database JSON (Added complex S/X params and inequality brackets)
             databaseFiles = {
                 "Skills.json": JSON.stringify([
                     null,
                     { 
                         id: 1, 
-                        name: "Broken Strike", 
+                        name: "Broken Strike (Real Error)", 
                         note: "<JS Post-Damage>\n if (a.atk > 10) {\n   b.gainHp(-50);\n // Missing closing brace!\n</JS Post-Damage>", 
                         damage: { formula: "a.atk * 4 - b.def" } 
                     },
                     { 
                         id: 2, 
-                        name: "Typo Slash", 
-                        note: "<All Conditions>\n tagret hp > 50\n</All Conditions>", 
-                        damage: { formula: "Math.floor(a.atk * 2)/3" } 
+                        name: "Native Function & Global Eval (Should be safe)", 
+                        note: "", 
+                        damage: { formula: "$gameSwitches.setValue(260,true); 10 * a.agi / b.agi * b.paramBuffRate(3)" } 
                     },
                     { 
                         id: 3, 
-                        name: "Crash Heal", 
-                        note: "", 
-                        damage: { formula: "a.atkk * 2 + v[1]" } // 'atkk' will trigger a crash evaluation
+                        name: "Math Inequality Bracket Check (Should be safe)", 
+                        note: "<Custom Note: value < 5>\n<Range: a.hp > 50>", 
+                        damage: { formula: "Math.floor(25 * b.pha ** 3)" } 
                     }
                 ])
             };
@@ -1068,18 +1070,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Detect critical overwrites: if the last modifier of a method doesn't alias, it's a conflict
         for (const [method, modifiers] of Object.entries(globalPrototypeRegistry)) {
-            if (modifiers.length > 1) {
+            // Get unique plugins that modified this method (ignores MV/MZ if-else re-declarations)
+            const uniquePlugins = [...new Set(modifiers.map(m => m.pluginName))];
+            
+            if (uniquePlugins.length > 1) {
                 const finalActiveHandler = modifiers[modifiers.length - 1];
                 if (finalActiveHandler.safetyType === 'CRITICAL_OVERWRITE') {
-                    const disabledPlugins = [...new Set(modifiers.slice(0, -1).map(m => m.pluginName))];
-                    conflictMatrixCache[finalActiveHandler.pluginName] = {
-                        method: method,
-                        impact: `Completely overwrites native structure. Deactivates core modifications made by: [${disabledPlugins.join(', ')}].`
-                    };
+                    const disabledPlugins = uniquePlugins.filter(name => name !== finalActiveHandler.pluginName);
+                    
+                    if (disabledPlugins.length > 0) {
+                        conflictMatrixCache[finalActiveHandler.pluginName] = {
+                            method: method,
+                            impact: `Completely overwrites native structure. Deactivates core modifications made by: [${disabledPlugins.join(', ')}].`
+                        };
+                    }
                 }
             }
         }
-
         // If an active Nexus_Patch_ covers a conflict, remove it from the conflict list
         const activePatches = loadedPluginsCache.filter(p => p.status && p.name.includes('Nexus_Patch_'));
         activePatches.forEach(patch => {
@@ -1192,11 +1199,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
 
                         // --- UNCLOSED BRACKET CHECK ---
-                        // Strip known paired tags first so their angle brackets don't skew
-                        // the count, then check for any remaining unmatched < or >.
-                        let sanitizedNote = entry.note.replace(/<([^>]+)>[\s\S]*?<\/\1>/ig, '');
-                        sanitizedNote = sanitizedNote.replace(/<=|>=|=>|->|<-/g, '');
-                        sanitizedNote = sanitizedNote.replace(/\s[<>]\s/g, '');
+                        let sanitizedNote = entry.note;
+
+                        // 1. Strip mathematical multi-char operators
+                        sanitizedNote = sanitizedNote.replace(/<=|>=|=>|->|<-|==|===|!=|!==/g, '');
+                        
+                        // 2. Strip < and > used as math inequalities (surrounded by spaces or word boundaries)
+                        sanitizedNote = sanitizedNote.replace(/<\s/g, '');
+                        sanitizedNote = sanitizedNote.replace(/\s>/g, '');
+                        sanitizedNote = sanitizedNote.replace(/(?<=\w)[<>](?=\w)/g, ''); // Handles a<b or x>y
+
+                        // 3. Strip block notetags (e.g. <Tag>...</Tag>)
+                        sanitizedNote = sanitizedNote.replace(/<([^>]+)>[\s\S]*?<\/\1>/ig, '');
+
+                        // 4. Strip single/inline tags (e.g. <Tag> or <Tag: Value>)
+                        sanitizedNote = sanitizedNote.replace(/<[^>]+>/g, '');
 
                         const openBrackets  = (sanitizedNote.match(/</g) || []).length;
                         const closeBrackets = (sanitizedNote.match(/>/g) || []).length;
@@ -1342,10 +1359,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
 
                         // --- EXECUTION VALIDATION PASS ---
-                        // Pass $gameVariables as a sandbox param so longhand formulas don't
-                        // throw a false 'not defined' error.
                         try {
-                            const testFunc = new Function('a', 'b', 'v', 'sign', '$gameVariables', `
+                            // Inject $gameSwitches into the sandbox arguments
+                            const testFunc = new Function('a', 'b', 'v', 'sign', '$gameVariables', '$gameSwitches', `
                                 let dmg = 0;
                                 return ${originalFormula};
                             `);
@@ -1355,19 +1371,29 @@ document.addEventListener('DOMContentLoaded', () => {
                                 mhp: 100, mmp: 50,
                                 atk: 20, def: 10, mat: 20, mdf: 10, agi: 15, luk: 15,
                                 level: 5,
+                                
+                                // Expand X-Params and S-Params
+                                hit: 0.95, eva: 0.05, cri: 0.04, cev: 0, mev: 0, mrf: 0, cnt: 0, hrg: 0, mrg: 0, trg: 0,
+                                tgr: 1, grd: 1, rec: 1, pha: 1, mcr: 1, tcr: 1, pdr: 1, mdr: 1, fdr: 1, exr: 1,
+
                                 param:   function() { return 20; },
                                 xparam:  function() { return 0.1; },
                                 sparam:  function() { return 1.0; },
+                                paramBuffRate: function() { return 1.0; }, // Missing native MZ function
+                                
                                 hpRate:  function() { return 1; },
                                 mpRate:  function() { return 1; },
                                 tpRate:  function() { return 1; },
+                                
                                 isStateAffected:  function() { return false; },
                                 isBuffAffected:   function() { return false; },
                                 isDebuffAffected: function() { return false; },
+                                isStateResist:    function() { return false; }, // Missing native MZ function
                                 isDead:   function() { return false; },
                                 isAlive:  function() { return true; },
                                 isEnemy:  function() { return false; },
                                 isActor:  function() { return true; },
+                                
                                 elementRate: function() { return 1; },
                                 stateRate:   function() { return 1; },
                                 addState:    function() {},
@@ -1376,16 +1402,16 @@ document.addEventListener('DOMContentLoaded', () => {
                                 hasSkill: function() { return false; },
                             };
 
-                            // v[x] shorthand proxy — returns 5 for any unset variable index
                             const dummyV = new Proxy({}, {
                                 get: (t, p) => t[p] !== undefined ? t[p] : 5,
                                 set: (t, p, val) => { t[p] = val; return true; }
                             });
 
-                            // Mock $gameVariables so longhand formulas don't throw 'not defined'
-                            const dummyGameVariables = { value: () => 5 };
+                            // Mock global database objects
+                            const dummyGameVariables = { value: () => 5, setValue: () => {} };
+                            const dummyGameSwitches  = { value: () => false, setValue: () => {} };
 
-                            const result = testFunc(baseStats, baseStats, dummyV, 1, dummyGameVariables);
+                            const result = testFunc(baseStats, baseStats, dummyV, 1, dummyGameVariables, dummyGameSwitches);
 
                             if (typeof result === 'number' && isNaN(result)) {
                                 throw new Error('Execution evaluated to NaN (Not-a-Number).');
@@ -1488,9 +1514,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     <h4 style="color: #ef4444;">⚠️ Critical Function Overwrite Verified: <code>${details.method}</code></h4>
                     <p>The code inside <strong>${pluginName}.js</strong> explicitly replaces this core routine without an internal backward-compatible alias loop.</p>
                     <div class="impact-text" style="border-left-color: #ef4444;">${details.impact}</div>
-                    <div class="card-actions">
-                        <button class="btn-premium" onclick="triggerPremiumCheckout('${pluginName}', '${details.method}')">Generate Compatibility Patch</button>
-                    </div>
                 </div>`;
         }
 
@@ -1691,36 +1714,7 @@ document.addEventListener('DOMContentLoaded', () => {
         viewPanel.innerHTML = html;
     }
 
-    // --- 7. ZIP PATCH COMPILER ---
-    window.triggerPremiumCheckout = async function(offendingPlugin, brokenMethod) {
-        const targetPlugin = offendingPlugin || 'Unknown_Plugin';
-        const targetMethod = brokenMethod  || 'Unknown.prototype.method';
-
-        if (typeof JSZip === 'undefined') {
-            alert('⚠️ Network Error: Unable to reach the compression engine.');
-            return;
-        }
-
-        alert(`🛠️ MZ-Nexus Sandbox Mode:\nCompiling compatibility patch archive for ${targetPlugin}.js -> ${targetMethod}`);
-
-        const patchContent = `/*:\n * @target MZ\n * @plugindesc [MZ-Nexus Compatibility Patch] Restores native functional loops overwritten by ${targetPlugin}.\n * @author MZ-Nexus Subsystem\n *\n * @help\n * Place this patch directly BELOW ${targetPlugin} in your plugin load manager list.\n */\n\n(function() {\n    const parts = "${targetMethod}".split('.');\n    const baseNamespace = parts[0];\n    const subMethod = parts.length > 2 ? parts[2] : parts[1];\n    const globalContextTarget = (parts.length > 2 && parts[1] === 'prototype') ? window[baseNamespace].prototype : window[baseNamespace];\n    if (globalContextTarget && typeof globalContextTarget[subMethod] === 'function') {\n        const _Nexus_Original_Method_Cache = globalContextTarget[subMethod];\n        globalContextTarget[subMethod] = function() {\n            return _Nexus_Original_Method_Cache.apply(this, arguments);\n        };\n        console.log("🟢 MZ-Nexus Patch Bound successfully to ${targetMethod}.");\n    }\n})();`;
-
-        const readmeContent = `=======================================\nMZ-NEXUS COMPATIBILITY PATCH ENGINE\n=======================================\n\nINSTALLATION INSTRUCTIONS:\n1. Extract this .zip folder.\n2. Copy 'Nexus_Patch_${targetPlugin}.js' into your project's js/plugins/ folder.\n3. Open your RPG Maker Plugin Manager.\n4. Add the patch and place it directly BELOW ${targetPlugin}.\n\nThe MZ-Nexus Auto-Optimize Order tool will automatically snap this patch into the correct position.`;
-
-        const zip = new JSZip();
-        zip.file(`Nexus_Patch_${targetPlugin}.js`, patchContent);
-        zip.file('README_INSTALLATION.txt', readmeContent);
-
-        const content = await zip.generateAsync({ type: 'blob' });
-        const downloadLink = document.createElement('a');
-        downloadLink.href = URL.createObjectURL(content);
-        downloadLink.download = `Nexus_Patch_${targetPlugin}.zip`;
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
-    };
-
-    // --- 8. AUTO-OPTIMIZER WITH TOPOLOGICAL SORT ---
+    // --- 7. AUTO-OPTIMIZER WITH TOPOLOGICAL SORT ---
     btnOptimize.addEventListener('click', async () => {
         if (loadedPluginsCache.length === 0) {
             alert('No active configuration array found.');
@@ -1812,7 +1806,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderActiveView();
     });
 
-    // --- 9. RESET ---
+    // --- 8. RESET ---
     btnReset.addEventListener('click', () => {
         if (!confirm('Clear all loaded files and start over?')) return;
 
@@ -1844,7 +1838,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderActiveView();
     });
 
-    // --- 10. EXPORT ---
+    // --- 9. EXPORT ---
     btnExport.addEventListener('click', () => {
         if (loadedPluginsCache.length === 0) return;
         const outputString = `var $plugins =\n${JSON.stringify(loadedPluginsCache, null, 2)};\n`;
