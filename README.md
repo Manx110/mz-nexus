@@ -9,7 +9,7 @@
 
 ## What is MZ-Nexus?
 
-Managing a large RPG Maker MZ project means juggling dozens of plugins, database entries, and notetags across multiple plugin ecosystems. Things break silently — a wrong load order crashes your battle system, a missing `)` in a notetag only surfaces when a player triggers that skill, a blank `<Multi-Element: >` just does nothing with no warning.
+Managing a large RPG Maker MZ project means juggling dozens of plugins, database entries, and notetags from multiple authors and plugin suites. Things break silently — a wrong load order crashes your battle system, a missing `)` in a notetag only surfaces when a player triggers that skill, a blank `<Multi-Element: >` just does nothing with no warning.
 
 MZ-Nexus is a drag-and-drop diagnostic tool that runs entirely in your browser — no install, no account, no data ever leaves your machine. Drop in your project files and it tells you exactly what's wrong before your players find out.
 
@@ -21,17 +21,17 @@ MZ-Nexus is a drag-and-drop diagnostic tool that runs entirely in your browser �
 
 ### 🔌 Plugin Manager
 
-- Parses your `plugins.js` and displays the full active load order in the sidebar with tier and ecosystem badges
-- **Ecosystem-aware load order analysis** — understands that VisuStella, MK RNGMaps, and other plugin families each have their own internal tier systems that must not be compared against each other
-- **Multi-ecosystem ordering** — enforces the correct three-block order: `[VisuStella + Public_* runtimes] → [standalone tier plugins] → [third-party ecosystems like MK]`
+- Parses your `plugins.js` and displays the full active load order in the sidebar with tier badges per plugin
+- **Load order analysis** — understands that VisuStella, MK RNGMaps, and other plugin families each use their own internal tier numbering that must not be compared across families
+- **Multi-group ordering** — recommends and auto-optimizes the three-block order: `[VisuStella + Public_* runtimes] → [standalone tier plugins] → [third-party plugin groups]`
 - **Public_* runtime detection** — correctly places VisuStella runtime libraries (e.g. `Public_0_DragonBones`) before `VisuMZ_0_CoreEngine` where the engine expects them
-- **Tier violation detection** — flags higher-tier plugins loading before their lower-tier dependencies, within the same ecosystem only
-- **Ecosystem root anchor detection** — catches third-party ecosystem root plugins (e.g. `MK_Core`) placed above VisuStella plugins, and explains exactly which core prototype methods are at risk
+- **Tier violation detection** — flags higher-tier plugins loading before their lower-tier dependencies, scoped within the same plugin family only so cross-family tier numbers are never compared
+- **Load order anchor detection** — catches third-party base plugins (e.g. `MK_RNGMaps_Core`) placed above VisuStella plugins, and explains exactly which core prototype methods are at risk
 - **`@base` and `@orderAfter` parsing** — reads explicit dependency declarations from plugin source headers and registers them in the dependency graph
 - **Missing dependency detection** — warns when a `@base` or `@orderAfter` declaration points to a plugin not present in the load list, distinguishing hard dependencies (will crash) from soft ordering constraints
 - **Namespace detection from source** — when plugin `.js` files are dropped, scans for `var NAMESPACE = NAMESPACE || {}` declarations to accurately identify plugin families without relying on name prefixes alone
 - **Critical prototype overwrite detection** — identifies plugins that hard-replace a core method without aliasing, silently breaking other plugins that modified the same method
-- **Auto-Optimize Order** — topological sort that resolves the entire multi-ecosystem dependency graph in one click, snapping Nexus compatibility patches directly below their target plugins and warning about any circular dependencies found
+- **Auto-Optimize Order** — topological sort that resolves the entire dependency graph across all plugin families in one click, snapping Nexus compatibility patches directly below their target plugins and warning about any circular dependencies found
 - Generates downloadable **compatibility patch files** (`.zip`) for detected code conflicts
 - Export a corrected `plugins.js` ready to drop back into your project
 
@@ -79,7 +79,7 @@ Click **⚡ Load Demo Sandbox** in the sidebar drop zone to load a pre-built exa
 1. Locate your `plugins.js` file — it lives at `[your project]/js/plugins.js`
 2. Optionally also grab the individual plugin `.js` files from `[your project]/js/plugins/`
 3. Drag and drop them all into the **sidebar drop zone**
-4. The load order appears in the sidebar with tier `[T1]` and ecosystem `[MK T1]` badges
+4. The load order appears in the sidebar with tier badges (e.g. `[T1]`, `[T-1]`, `[T-2]`) for each plugin
 5. Conflicts and violations appear in the **Resolution Center** tab
 
 > **Tip:** Dropping the individual plugin `.js` files alongside `plugins.js` enables deep source scanning. The tool can then detect actual prototype overwrites inside the code, read `@base` and `@orderAfter` declarations, detect plugin family namespaces, and produce more accurate ordering — rather than relying on tier numbers and name prefixes alone.
@@ -92,7 +92,7 @@ Click **⚡ Load Demo Sandbox** in the sidebar drop zone to load a pre-built exa
 
 ### Fixing Issues
 
-- **Tier violations and load order issues** → click **Auto-Optimize Order** to sort everything automatically across all ecosystems, then **Export Updated plugins.js**
+- **Tier violations and load order issues** → click **Auto-Optimize Order** to sort everything automatically, then **Export Updated plugins.js**
 - **Critical overwrites** → click **Generate Compatibility Patch** to download a ready-to-use alias wrapper, place it below the offending plugin in your project
 - **Database errors** → fix the issue in RPG Maker's database editor, re-export the JSON, and re-drop it to verify
 - **Style suggestions** → copy the suggested formula from the side-by-side display directly into your database
@@ -139,25 +139,26 @@ MZ-Nexus uses a registry-based system for recognising JavaScript notetag blocks.
 
 Add the tag name (lower-case) to `CONDITION_BLOCK_TAGS` and any new valid keywords to `KNOWN_CONDITION_KEYWORDS` in `parser.js`.
 
-### Adding a New Plugin Ecosystem
+### Adding a New Plugin Group
 
-Add the ecosystem's root/anchor plugin to `ECOSYSTEM_VISUCORE_ANCHORS`:
+Add the group's root/anchor plugin to the sort-order registry in `parser.js`:
 
 ```javascript
-const ECOSYSTEM_VISUCORE_ANCHORS = {
-    'MK_RNGMaps': 'MK_Core',
+// Sort-order registry — maps a plugin group's name to its root/base plugin
+const PLUGIN_GROUP_ANCHORS = {  // internal name in parser.js; shown here for clarity
+    'MK_RNGMaps':  'MK_RNGMaps_Core',
     'CGMZ':       'CGMZ_Core',
-    'MyEcosystem': 'MyEcosystem_Core',  // add here
+    'MyGroup':    'MyGroup_Core',  // add here
 };
 ```
 
-And add its name prefix to `getPluginEcosystem()`:
+And add its name prefix to the plugin family detection function:
 
 ```javascript
-if (pluginName.startsWith('My_')) return 'MyEcosystem';
+if (pluginName.startsWith('My_')) return 'MyGroup';
 ```
 
-Once registered, the tool will automatically enforce that the entire ecosystem sorts after VisuStella and standalone tier-declaring plugins, and tier comparisons will be scoped within the ecosystem correctly.
+Once registered, the tool will recommend that the root plugin sorts after VisuStella and standalone tier-declaring plugins, and tier comparisons within the group will be scoped correctly. This is a sorting aid — it does not imply the plugins form a monolithic dependency group beyond their own declared `@base`/`@orderAfter` relationships.
 
 ---
 
@@ -171,10 +172,10 @@ MZ-Nexus uses a **topological sort** over a directed dependency graph. Understan
 **Layer 2 — Standalone tier-declaring plugins**  
 Third-party plugins from other authors that declare `[Tier X]` in their description (following VisuStella's convention) are placed after the entire VisuStella block. They depend on VisuStella's fully-built method chain rather than just CoreEngine.
 
-**Layer 3 — Third-party ecosystems**  
-Registered ecosystems like MK RNGMaps are placed after both previous layers. The ecosystem anchor plugin (`MK_Core`) is forced to depend on all VisuStella and standalone-tier plugins, pulling the entire chain with it.
+**Layer 3 — Third-party plugin groups**  
+Plugin groups like MK RNGMaps are placed after both previous layers as a general best-practice recommendation. The root plugin (`MK_RNGMaps_Core`) is registered as depending on all VisuStella and standalone-tier plugins, pulling its related addons with it through their `@base`/`@orderAfter` declarations. Note that this ordering is a recommendation — MK RNGMaps plugins are individually standalone and may work correctly in other positions depending on your project setup.
 
-Within each ecosystem, `@base` and `@orderAfter` declarations (read from source files if dropped) provide the authoritative ordering. Tier numbers provide the fallback when source files are not available.
+Within each plugin family, `@base` and `@orderAfter` declarations (read from source files if dropped) provide the authoritative ordering. Tier numbers provide the fallback when source files are not available.
 
 ---
 
@@ -217,7 +218,7 @@ See [`LICENSE`](./LICENSE) for full terms.
 
 ## Contributing & Bug Reports
 
-Found a bug, an undetected notetag format, or a plugin ecosystem that needs registering?  
+Found a bug, an undetected notetag format, or a plugin family that needs registering?  
 **[Open an issue on GitHub](https://github.com/Manx110/mz-nexus/issues)** — include the plugin name, the notetag or pattern involved, and ideally a minimal example.
 
 Pull requests are welcome. Please open an issue first to discuss significant changes.
