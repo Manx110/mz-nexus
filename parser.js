@@ -961,16 +961,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         let sanitizedNote = entry.note;
 
-                        // Strip multi-char JS operators that contain < or > so they aren't
-                        // miscounted as notetag brackets. Bit-shifts (<<, >>, >>>) included.
-                        sanitizedNote = sanitizedNote.replace(/>>>|<<|>>|<=|>=|=>|->|<-|===|!==|==|!=/g, '');
-                        sanitizedNote = sanitizedNote.replace(/<\s/g, '');
-                        sanitizedNote = sanitizedNote.replace(/\s>/g, '');
-                        sanitizedNote = sanitizedNote.replace(/(?<=\w)[<>](?=\w)/g, '');
-
+                        // 1. BLOCK TAGS: Strip block tags entirely first. 
+                        // This protects valid internal logic like `<JS> if (a.hp > 5) </JS>` from triggering false positives.
                         sanitizedNote = sanitizedNote.replace(/<([^>]+)>[\s\S]*?<\/\1>/ig, '');
+
+                        // 2. INLINE TAGS: Strip inline tags EXACTLY how the native engine does (stops at the first '>').
+                        // This safely removes `<Custom Note: value < 5>`.
+                        // BUT it correctly truncates `<Range: a.hp > 50>`, leaving ` 50>` behind as a dangling string!
                         sanitizedNote = sanitizedNote.replace(/<[^>]+>/g, '');
 
+                        // 3. MULTI-CHAR OPERATORS: Strip compound operators (e.g. <=, >=, <<, >>) so they aren't miscounted.
+                        sanitizedNote = sanitizedNote.replace(/>>>|<<|>>|<=|>=|=>|->|<-|===|!==|==|!=/g, '');
+
+                        // 4. PLAIN TEXT INEQUALITIES: Strip valid mathematical inequalities from remaining plain-text notes.
+                        sanitizedNote = sanitizedNote.replace(/(?<=\w)\s*[<>]\s*(?=\w)/g, '');
+
+                        // 5. COUNT: Finally, count the remaining brackets.
                         const openBrackets  = (sanitizedNote.match(/</g) || []).length;
                         const closeBrackets = (sanitizedNote.match(/>/g) || []).length;
 
