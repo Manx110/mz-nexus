@@ -322,6 +322,24 @@ function validateBlockLines(tagNameLower, content) {
 
         if (tokens.length === 0) return;
 
+        // A line of the form "Key:" — a colon with nothing after it — is a missing
+        // value regardless of whether "Key" is a recognized keyword. This catches
+        // any "Key: value" block format, e.g. <Random Variant> where each line is
+        // "Tier: weight" (Mighty: 20 / Normal: 30 / Puny: <-- missing weight).
+        // The trailing colon is the universal signal that a value was expected.
+        if (/^[^:]+:\s*$/.test(trimmed)) {
+            const keyName = trimmed.replace(/:\s*$/, '').trim();
+            issues.push({
+                type: 'missing_value',
+                lineNum: idx + 1,
+                text: trimmed,
+                message: `The line <code>${trimmed}</code> ends with a colon, indicating a value is
+                          expected, but nothing follows it. Add the missing value — e.g.
+                          <code>${keyName}: 20</code>.`
+            });
+            return;
+        }
+
         const lastToken = tokens[tokens.length - 1];
 
         if (REQUIRES_VALUE_WORDS.has(lastToken)) {
